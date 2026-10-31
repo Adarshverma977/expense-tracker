@@ -1,0 +1,65 @@
+const AppError = require("../utils/AppError");
+
+const errorMiddleware = (err, req, res, next) => {
+  let error = err;
+
+  // Zod validation errors
+  if (err.name === "ZodError") {
+    error = new AppError("Request validation failed", 400);
+  }
+
+  // Mongoose validation errors
+  else if (err.name === "ValidationError") {
+    error = new AppError("Database validation failed", 400);
+  }
+
+  // Invalid MongoDB ObjectId
+  else if (err.name === "CastError") {
+    error = new AppError("Invalid resource identifier", 400);
+  }
+
+  // MongoDB duplicate key error
+  else if (err.code === 11000) {
+    error = new AppError("Resource already exists", 409);
+  }
+
+  // Invalid JWT
+  else if (err.name === "JsonWebTokenError") {
+    error = new AppError("Invalid authentication token", 401);
+  }
+
+  // Expired JWT
+  else if (err.name === "TokenExpiredError") {
+    error = new AppError("Authentication token expired", 401);
+  }
+
+  // Invalid JSON request body
+  else if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    error = new AppError("Invalid JSON request body", 400);
+  }
+
+  // Unexpected errors
+  else if (!(err instanceof AppError)) {
+    console.error("Unexpected error:", err);
+
+    error = new AppError("Internal Server Error", 500);
+  }
+
+  const response = {
+    success: false,
+    message:
+      error.statusCode === 500 && process.env.NODE_ENV === "production"
+        ? "Internal Server Error"
+        : error.message,
+    status: error.status,
+  };
+
+  // Stack trace only in development
+  if (process.env.NODE_ENV === "development") {
+    response.stack = err.stack;
+  }
+
+  res.status(error.statusCode).json(response);
+};
+
+module.exports = errorMiddleware;
