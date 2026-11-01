@@ -5,6 +5,7 @@ const helmet = require("helmet");
 
 const env = require("./config/env");
 
+const authRoutes = require("./routes/authRoutes");
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const { apiLimiter } = require("./middleware/rateLimiter");
@@ -40,6 +41,9 @@ app.get("/api/health", (req, res) => {
     environment: env.NODE_ENV,
   });
 });
+
+// Authentication routes
+app.use("/api/auth", authRoutes);
 
 // Handle undefined routes
 app.use(notFoundMiddleware);

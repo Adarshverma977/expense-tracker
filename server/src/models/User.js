@@ -32,6 +32,17 @@ const userSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+
+    // Email verification
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
