@@ -208,8 +208,9 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     },
     {
       new: true,
+      runValidators: true,
     },
-  );
+  ).select("+passwordHash");
 
   if (!consumedRegistration) {
     throw new AppError("OTP is invalid, expired, or already used", 400);

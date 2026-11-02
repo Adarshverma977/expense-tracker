@@ -6,6 +6,7 @@ const helmet = require("helmet");
 const env = require("./config/env");
 
 const authRoutes = require("./routes/authRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const { apiLimiter } = require("./middleware/rateLimiter");
@@ -44,6 +45,8 @@ app.get("/api/health", (req, res) => {
 
 // Authentication routes
 app.use("/api/auth", authRoutes);
+
+app.use("/api/categories", categoryRoutes);
 
 // Handle undefined routes
 app.use(notFoundMiddleware);
