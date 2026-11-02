@@ -1,7 +1,7 @@
 const { z } = require("zod");
 
-// Registration validation
-const registerSchema = z.object({
+// Registration: Send OTP
+const sendRegistrationOTPSchema = z.object({
   body: z
     .object({
       name: z
@@ -15,7 +15,7 @@ const registerSchema = z.object({
         .trim()
         .email("Please provide a valid email address")
         .max(254, "Email cannot exceed 254 characters")
-        .transform((value) => value.toLowerCase()),
+        .toLowerCase(),
 
       password: z
         .string()
@@ -25,18 +25,37 @@ const registerSchema = z.object({
       currency: z
         .string()
         .trim()
-        .length(3, "Currency must be a 3-letter currency code")
-        .regex(/^[A-Za-z]{3}$/, "Invalid currency code")
+        .length(3, "Currency must contain exactly 3 characters")
+        .regex(/^[A-Za-z]{3}$/, "Invalid currency format")
         .transform((value) => value.toUpperCase())
         .default("INR"),
     })
     .strict(),
 
-  query: z.object({}),
-  params: z.object({}),
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
 });
 
-// Login validation
+// Registration: Verify OTP
+const verifyRegistrationOTPSchema = z.object({
+  body: z
+    .object({
+      email: z
+        .string()
+        .trim()
+        .email("Please provide a valid email address")
+        .max(254, "Email cannot exceed 254 characters")
+        .toLowerCase(),
+
+      otp: z.string().regex(/^\d{6}$/, "OTP must be exactly 6 digits"),
+    })
+    .strict(),
+
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
+
+// Login
 const loginSchema = z.object({
   body: z
     .object({
@@ -45,7 +64,7 @@ const loginSchema = z.object({
         .trim()
         .email("Please provide a valid email address")
         .max(254, "Email cannot exceed 254 characters")
-        .transform((value) => value.toLowerCase()),
+        .toLowerCase(),
 
       password: z
         .string()
@@ -54,11 +73,12 @@ const loginSchema = z.object({
     })
     .strict(),
 
-  query: z.object({}),
-  params: z.object({}),
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
 });
 
 module.exports = {
-  registerSchema,
+  sendRegistrationOTPSchema,
+  verifyRegistrationOTPSchema,
   loginSchema,
 };

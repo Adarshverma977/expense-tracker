@@ -61,6 +61,16 @@ const pendingRegistrationSchema = new mongoose.Schema(
       default: 1,
       min: 1,
     },
+
+    sendWindowStartedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    consumedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

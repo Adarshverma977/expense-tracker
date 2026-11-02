@@ -67,8 +67,10 @@ const sendRegistrationOTP = async (userData) => {
     pendingRegistration.expiresAt = getOTPExpiry();
     pendingRegistration.attempts = 0;
     pendingRegistration.lastSentAt = new Date();
-
     pendingRegistration.sendCount += 1;
+
+    // Reset OTP consumption for the new OTP.
+    pendingRegistration.consumedAt = null;
 
     await pendingRegistration.save();
   } else {
@@ -82,6 +84,7 @@ const sendRegistrationOTP = async (userData) => {
       attempts: 0,
       lastSentAt: new Date(),
       sendCount: 1,
+      consumedAt: null,
     });
   }
 
@@ -119,6 +122,11 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("No pending registration found for this email", 404);
   }
 
+  // Prevent reuse of an already consumed OTP.
+  if (pendingRegistration.consumedAt) {
+    throw new AppError("This OTP has already been used", 400);
+  }
+
   // Check OTP expiry.
   if (pendingRegistration.expiresAt.getTime() <= Date.now()) {
     await PendingRegistration.deleteOne({
@@ -139,12 +147,33 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
   // Verify submitted OTP.
   const isOTPValid = verifyOTP(otp, pendingRegistration.otpHash);
 
+  // Atomically increment incorrect OTP attempts.
   if (!isOTPValid) {
-    pendingRegistration.attempts += 1;
+    const updatedRegistration = await PendingRegistration.findOneAndUpdate(
+      {
+        _id: pendingRegistration._id,
+        consumedAt: null,
+        expiresAt: { $gt: new Date() },
+        attempts: { $lt: MAX_OTP_ATTEMPTS },
+      },
+      {
+        $inc: {
+          attempts: 1,
+        },
+      },
+      {
+        new: true,
+      },
+    );
 
-    await pendingRegistration.save();
+    if (!updatedRegistration) {
+      throw new AppError(
+        "Maximum OTP attempts exceeded. Please request a new OTP.",
+        429,
+      );
+    }
 
-    if (pendingRegistration.attempts >= MAX_OTP_ATTEMPTS) {
+    if (updatedRegistration.attempts >= MAX_OTP_ATTEMPTS) {
       throw new AppError(
         "Maximum OTP attempts exceeded. Please request a new OTP.",
         429,
@@ -160,26 +189,59 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
   });
 
   if (existingUser) {
-    await PendingRegistration.deleteOne({
-      _id: pendingRegistration._id,
-    });
-
     throw new AppError("An account with this email already exists", 409);
   }
 
-  // Create verified user only after successful OTP verification.
+  // Atomically consume the verified OTP.
+  const consumedRegistration = await PendingRegistration.findOneAndUpdate(
+    {
+      _id: pendingRegistration._id,
+      otpHash: pendingRegistration.otpHash,
+      consumedAt: null,
+      expiresAt: { $gt: new Date() },
+      attempts: { $lt: MAX_OTP_ATTEMPTS },
+    },
+    {
+      $set: {
+        consumedAt: new Date(),
+      },
+    },
+    {
+      new: true,
+    },
+  );
+
+  if (!consumedRegistration) {
+    throw new AppError("OTP is invalid, expired, or already used", 400);
+  }
+
+  // Create verified user only after successful OTP consumption.
   let user;
 
   try {
     user = await User.create({
-      name: pendingRegistration.name,
-      email: pendingRegistration.email,
-      password: pendingRegistration.passwordHash,
-      currency: pendingRegistration.currency,
+      name: consumedRegistration.name,
+      email: consumedRegistration.email,
+      password: consumedRegistration.passwordHash,
+      currency: consumedRegistration.currency,
       emailVerified: true,
       emailVerifiedAt: new Date(),
     });
   } catch (error) {
+    // Release the OTP if account creation failed.
+    // This allows a legitimate retry.
+    await PendingRegistration.updateOne(
+      {
+        _id: consumedRegistration._id,
+        consumedAt: consumedRegistration.consumedAt,
+      },
+      {
+        $set: {
+          consumedAt: null,
+        },
+      },
+    );
+
     if (error.code === 11000) {
       throw new AppError("An account with this email already exists", 409);
     }
@@ -189,7 +251,7 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
 
   // Remove temporary registration data.
   await PendingRegistration.deleteOne({
-    _id: pendingRegistration._id,
+    _id: consumedRegistration._id,
   });
 
   return {

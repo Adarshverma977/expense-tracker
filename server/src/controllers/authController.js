@@ -1,64 +1,88 @@
+const {
+  sendRegistrationOTP,
+  verifyRegistrationOTP,
+  loginUser,
+} = require("../services/authService");
+
 const asyncHandler = require("../utils/asyncHandler");
+
 const setAuthCookie = require("../utils/setAuthCookie");
 const clearAuthCookie = require("../utils/clearAuthCookie");
 
-const { registerUser, loginUser } = require("../services/authService");
+// Send registration OTP
+const sendRegistrationOTPController = asyncHandler(async (req, res) => {
+  const result = await sendRegistrationOTP(req.body);
 
-// User Registration
-const register = asyncHandler(async (req, res) => {
-  const user = await registerUser(req.body);
-
-  res.status(201).json({
-    success: true,
-    message: "Account registered successfully",
-    data: { user },
+  res.status(200).json({
+    status: "success",
+    message: result.message,
+    data: {
+      email: result.email,
+      expiresIn: result.expiresIn,
+      resendAfter: result.resendAfter,
+    },
   });
 });
 
-// User Login
+// Verify OTP and complete registration
+const verifyRegistrationOTPController = asyncHandler(async (req, res) => {
+  const user = await verifyRegistrationOTP(req.body);
+
+  res.status(201).json({
+    status: "success",
+    message: "Email verified and account created successfully",
+    data: {
+      user,
+    },
+  });
+});
+
+// Login
 const login = asyncHandler(async (req, res) => {
   const { user, token } = await loginUser(req.body);
 
   setAuthCookie(res, token);
 
   res.status(200).json({
-    success: true,
+    status: "success",
     message: "Login successful",
-    data: { user },
+    data: {
+      user,
+    },
   });
 });
 
-// User Logout
+// Logout
 const logout = asyncHandler(async (req, res) => {
   clearAuthCookie(res);
 
   res.status(200).json({
-    success: true,
+    status: "success",
     message: "Logout successful",
   });
 });
 
-// Get Current User
+// Get logged-in user
 const getMe = asyncHandler(async (req, res) => {
-  const user = req.user;
-
   res.status(200).json({
-    success: true,
-    message: "User profile fetched successfully",
+    status: "success",
     data: {
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        currency: user.currency,
-        createdAt: user.createdAt,
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        currency: req.user.currency,
+        emailVerified: req.user.emailVerified,
+        emailVerifiedAt: req.user.emailVerifiedAt,
+        createdAt: req.user.createdAt,
       },
     },
   });
 });
 
 module.exports = {
-  register,
+  sendRegistrationOTP: sendRegistrationOTPController,
+  verifyRegistrationOTP: verifyRegistrationOTPController,
   login,
   logout,
   getMe,
