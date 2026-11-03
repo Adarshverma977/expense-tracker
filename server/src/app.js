@@ -8,6 +8,7 @@ const env = require("./config/env");
 const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const { apiLimiter } = require("./middleware/rateLimiter");
@@ -50,6 +51,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
 
 app.use("/api/transactions", transactionRoutes);
+
+app.use("/api/dashboard", dashboardRoutes);
 
 // Handle undefined routes
 app.use(notFoundMiddleware);
