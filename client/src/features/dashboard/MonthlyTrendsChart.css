@@ -1,0 +1,33 @@
+.monthly-trends-chart {
+  width: 100%;
+  height: 320px;
+  min-width: 0;
+}
+
+.chart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 220px;
+  text-align: center;
+  gap: 8px;
+}
+
+.chart-empty-state p {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chart-empty-state span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+@media (max-width: 520px) {
+  .monthly-trends-chart {
+    height: 280px;
+  }
+}

@@ -1,0 +1,134 @@
+.category-chart {
+  width: 100%;
+}
+
+.category-chart-visual {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto 24px;
+}
+
+.category-chart-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.category-chart-center span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.category-chart-center strong {
+  color: var(--text-primary);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.category-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.category-legend-item,
+.category-legend-info,
+.category-legend-values {
+  display: flex;
+  align-items: center;
+}
+
+.category-legend-item {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.category-legend-info {
+  gap: 10px;
+  min-width: 0;
+}
+
+.category-legend-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.category-legend-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.category-legend-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-legend-count {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.category-legend-values {
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.category-legend-values strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.category-legend-values span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.category-chart-empty {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.category-chart-empty-icon {
+  margin-bottom: 12px;
+  color: var(--text-muted);
+  font-size: 38px;
+}
+
+.category-chart-empty h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.category-chart-empty p {
+  max-width: 260px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
