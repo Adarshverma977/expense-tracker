@@ -2,6 +2,8 @@ const {
   sendRegistrationOTP,
   verifyRegistrationOTP,
   loginUser,
+  forgotPassword,
+  resetPassword,
 } = require("../services/authService");
 
 const asyncHandler = require("../utils/asyncHandler");
@@ -80,10 +82,32 @@ const getMe = asyncHandler(async (req, res) => {
   });
 });
 
+// Forgot Password
+const forgotPasswordController = asyncHandler(async (req, res) => {
+  const result = await forgotPassword(req.body.email);
+
+  res.status(200).json({
+    status: "success",
+    message: result.message,
+  });
+});
+
+// Reset Password
+const resetPasswordController = asyncHandler(async (req, res) => {
+  const result = await resetPassword(req.body);
+
+  res.status(200).json({
+    status: "success",
+    message: result.message,
+  });
+});
+
 module.exports = {
   sendRegistrationOTP: sendRegistrationOTPController,
   verifyRegistrationOTP: verifyRegistrationOTPController,
   login,
   logout,
   getMe,
+  forgotPassword: forgotPasswordController,
+  resetPassword: resetPasswordController,
 };

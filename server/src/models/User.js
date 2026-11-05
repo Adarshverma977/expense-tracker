@@ -33,7 +33,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Email verification
     emailVerified: {
       type: Boolean,
       default: false,
@@ -42,6 +41,19 @@ const userSchema = new mongoose.Schema(
     emailVerifiedAt: {
       type: Date,
       default: null,
+    },
+
+    // Password Reset
+    passwordResetToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+      select: false,
     },
   },
   {

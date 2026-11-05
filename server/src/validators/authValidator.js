@@ -77,8 +77,47 @@ const loginSchema = z.object({
   params: z.object({}).strict(),
 });
 
+// Forgot Password
+const forgotPasswordSchema = z.object({
+  body: z
+    .object({
+      email: z
+        .string()
+        .trim()
+        .email("Please provide a valid email address")
+        .max(254, "Email cannot exceed 254 characters")
+        .toLowerCase(),
+    })
+    .strict(),
+
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
+
+// Reset Password
+const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      token: z
+        .string()
+        .min(1, "Reset token is required")
+        .max(256, "Invalid reset token"),
+
+      password: z
+        .string()
+        .min(8, "Password must contain at least 8 characters")
+        .max(72, "Password cannot exceed 72 characters"),
+    })
+    .strict(),
+
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
+
 module.exports = {
   sendRegistrationOTPSchema,
   verifyRegistrationOTPSchema,
   loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 };

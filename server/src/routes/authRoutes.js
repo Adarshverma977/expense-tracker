@@ -6,12 +6,16 @@ const {
   login,
   logout,
   getMe,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 
 const {
   loginSchema,
   sendRegistrationOTPSchema,
   verifyRegistrationOTPSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } = require("../validators/authValidator");
 
 const validateRequest = require("../middleware/validateRequest");
@@ -42,6 +46,22 @@ router.post(
   otpVerifyLimiter,
   validateRequest(verifyRegistrationOTPSchema),
   verifyRegistrationOTP,
+);
+
+// Forgot Password
+router.post(
+  "/forgot-password",
+  authLimiter,
+  validateRequest(forgotPasswordSchema),
+  forgotPassword,
+);
+
+// Reset Password
+router.post(
+  "/reset-password",
+  authLimiter,
+  validateRequest(resetPasswordSchema),
+  resetPassword,
 );
 
 // Login

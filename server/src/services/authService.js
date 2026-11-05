@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 
 const User = require("../models/User");
 const PendingRegistration = require("../models/PendingRegistration");
@@ -15,7 +16,7 @@ const {
   RESEND_COOLDOWN_SECONDS,
 } = require("../utils/otpUtils");
 
-const { sendOTPEmail } = require("./emailService");
+const { sendOTPEmail, sendPasswordResetEmail } = require("./emailService");
 
 // Send registration OTP
 const sendRegistrationOTP = async (userData) => {
@@ -23,7 +24,6 @@ const sendRegistrationOTP = async (userData) => {
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // Check whether an account already exists.
   const existingUser = await User.findOne({
     email: normalizedEmail,
   });
@@ -38,7 +38,6 @@ const sendRegistrationOTP = async (userData) => {
 
   const now = Date.now();
 
-  // Prevent frequent OTP requests.
   if (pendingRegistration) {
     const cooldownEndsAt =
       pendingRegistration.lastSentAt.getTime() + RESEND_COOLDOWN_SECONDS * 1000;
@@ -53,7 +52,6 @@ const sendRegistrationOTP = async (userData) => {
     }
   }
 
-  // Generate OTP and hash sensitive data.
   const otp = generateOTP();
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -68,8 +66,6 @@ const sendRegistrationOTP = async (userData) => {
     pendingRegistration.attempts = 0;
     pendingRegistration.lastSentAt = new Date();
     pendingRegistration.sendCount += 1;
-
-    // Reset OTP consumption for the new OTP.
     pendingRegistration.consumedAt = null;
 
     await pendingRegistration.save();
@@ -88,7 +84,6 @@ const sendRegistrationOTP = async (userData) => {
     });
   }
 
-  // Deliver OTP through email.
   try {
     await sendOTPEmail(normalizedEmail, otp);
   } catch (error) {
@@ -110,7 +105,7 @@ const sendRegistrationOTP = async (userData) => {
   };
 };
 
-// Verify registration OTP and create account.
+// Verify registration OTP and create account
 const verifyRegistrationOTP = async ({ email, otp }) => {
   const normalizedEmail = email.toLowerCase().trim();
 
@@ -122,12 +117,10 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("No pending registration found for this email", 404);
   }
 
-  // Prevent reuse of an already consumed OTP.
   if (pendingRegistration.consumedAt) {
     throw new AppError("This OTP has already been used", 400);
   }
 
-  // Check OTP expiry.
   if (pendingRegistration.expiresAt.getTime() <= Date.now()) {
     await PendingRegistration.deleteOne({
       _id: pendingRegistration._id,
@@ -136,7 +129,6 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("OTP has expired. Please request a new OTP.", 400);
   }
 
-  // Check maximum verification attempts.
   if (pendingRegistration.attempts >= MAX_OTP_ATTEMPTS) {
     throw new AppError(
       "Maximum OTP attempts exceeded. Please request a new OTP.",
@@ -144,10 +136,8 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     );
   }
 
-  // Verify submitted OTP.
   const isOTPValid = verifyOTP(otp, pendingRegistration.otpHash);
 
-  // Atomically increment incorrect OTP attempts.
   if (!isOTPValid) {
     const updatedRegistration = await PendingRegistration.findOneAndUpdate(
       {
@@ -157,13 +147,9 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
         attempts: { $lt: MAX_OTP_ATTEMPTS },
       },
       {
-        $inc: {
-          attempts: 1,
-        },
+        $inc: { attempts: 1 },
       },
-      {
-        new: true,
-      },
+      { new: true },
     );
 
     if (!updatedRegistration) {
@@ -183,7 +169,6 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("Invalid OTP", 400);
   }
 
-  // Ensure no account was created in the meantime.
   const existingUser = await User.findOne({
     email: normalizedEmail,
   });
@@ -192,7 +177,6 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("An account with this email already exists", 409);
   }
 
-  // Atomically consume the verified OTP.
   const consumedRegistration = await PendingRegistration.findOneAndUpdate(
     {
       _id: pendingRegistration._id,
@@ -216,7 +200,6 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw new AppError("OTP is invalid, expired, or already used", 400);
   }
 
-  // Create verified user only after successful OTP consumption.
   let user;
 
   try {
@@ -229,17 +212,13 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
       emailVerifiedAt: new Date(),
     });
   } catch (error) {
-    // Release the OTP if account creation failed.
-    // This allows a legitimate retry.
     await PendingRegistration.updateOne(
       {
         _id: consumedRegistration._id,
         consumedAt: consumedRegistration.consumedAt,
       },
       {
-        $set: {
-          consumedAt: null,
-        },
+        $set: { consumedAt: null },
       },
     );
 
@@ -250,7 +229,6 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
     throw error;
   }
 
-  // Remove temporary registration data.
   await PendingRegistration.deleteOne({
     _id: consumedRegistration._id,
   });
@@ -302,7 +280,108 @@ const loginUser = async (credentials) => {
   };
 };
 
-// Disable legacy direct registration endpoint.
+// Forgot Password
+const forgotPassword = async (email) => {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const genericResponse = {
+    message:
+      "If an account exists with this email, password reset instructions will be sent.",
+  };
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+  });
+
+  // Do not reveal whether an account exists.
+  if (!user) {
+    return genericResponse;
+  }
+
+  // Generate a cryptographically secure random token.
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  // Store only the SHA-256 hash in the database.
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  user.passwordResetToken = hashedToken;
+  user.passwordResetExpires = expiresAt;
+
+  await user.save();
+
+  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+
+  const resetUrl = new URL("/reset-password", clientUrl);
+  resetUrl.searchParams.set("token", resetToken);
+
+  try {
+    await sendPasswordResetEmail(normalizedEmail, resetUrl.toString());
+  } catch (error) {
+    // Remove the token if email delivery fails.
+    await User.updateOne(
+      {
+        _id: user._id,
+        passwordResetToken: hashedToken,
+      },
+      {
+        $unset: {
+          passwordResetToken: 1,
+          passwordResetExpires: 1,
+        },
+      },
+    );
+
+    console.error("Password reset email delivery failed:", error);
+  }
+
+  return genericResponse;
+};
+
+// Reset Password
+const resetPassword = async ({ token, password }) => {
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  // Atomic update prevents reuse of the same reset token.
+  const user = await User.findOneAndUpdate(
+    {
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    },
+    {
+      $set: {
+        password: passwordHash,
+      },
+      $unset: {
+        passwordResetToken: 1,
+        passwordResetExpires: 1,
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!user) {
+    throw new AppError(
+      "Password reset link is invalid or has expired. Please request a new link.",
+      400,
+    );
+  }
+
+  return {
+    message: "Password has been reset successfully. Please log in.",
+  };
+};
+
+// Disable legacy direct registration endpoint
 const registerUser = async () => {
   throw new AppError(
     "Direct registration is disabled. Please use email OTP verification.",
@@ -315,4 +394,6 @@ module.exports = {
   sendRegistrationOTP,
   verifyRegistrationOTP,
   loginUser,
+  forgotPassword,
+  resetPassword,
 };
