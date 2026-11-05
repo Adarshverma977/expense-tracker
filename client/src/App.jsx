@@ -1,12 +1,15 @@
-
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
+
+import AppLayout from "./layouts/AppLayout";
 import DashboardPage from "./features/dashboard/DashboardPage";
+
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
-import AppLayout from "./layouts/AppLayout";
+import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 
 function App() {
   return (
@@ -14,23 +17,19 @@ function App() {
       {/* Public Routes */}
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<LoginPage />} />
-
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route
-            path="/dashboard"
-            element={<DashboardPage />}
-          />
-
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route
             path="/transactions"
             element={<div>Transactions - Coming Soon</div>}
           />
-
           <Route
             path="/categories"
             element={<div>Categories - Coming Soon</div>}
@@ -38,17 +37,8 @@ function App() {
         </Route>
       </Route>
 
-      {/* Default Route */}
-      <Route
-        path="/"
-        element={<Navigate to="/dashboard" replace />}
-      />
-
-      {/* Not Found */}
-      <Route
-        path="*"
-        element={<div>404 - Page Not Found</div>}
-      />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<div>404 - Page Not Found</div>} />
     </Routes>
   );
 }

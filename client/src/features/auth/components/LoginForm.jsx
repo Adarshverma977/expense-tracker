@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Eye,
@@ -87,7 +87,9 @@ const LoginForm = () => {
       const authenticatedUser = await refreshUser();
 
       if (!authenticatedUser) {
-        throw new Error("Unable to verify your login session. Please try again.");
+        throw new Error(
+          "Unable to verify your login session. Please try again."
+        );
       }
 
       const redirectPath =
@@ -118,10 +120,14 @@ const LoginForm = () => {
         </div>
       )}
 
+      {/* Email Field */}
       <div className="auth-field">
         <label htmlFor="login-email">Email address</label>
 
-        <div className={`auth-input-wrapper ${fieldErrors.email ? "has-error" : ""}`}>
+        <div
+          className={`auth-input-wrapper ${fieldErrors.email ? "has-error" : ""
+            }`}
+        >
           <Mail size={18} aria-hidden="true" />
 
           <input
@@ -135,7 +141,9 @@ const LoginForm = () => {
             maxLength={254}
             disabled={isSubmitting}
             aria-invalid={Boolean(fieldErrors.email)}
-            aria-describedby={fieldErrors.email ? "login-email-error" : undefined}
+            aria-describedby={
+              fieldErrors.email ? "login-email-error" : undefined
+            }
           />
         </div>
 
@@ -146,12 +154,16 @@ const LoginForm = () => {
         )}
       </div>
 
+      {/* Password Field */}
       <div className="auth-field">
         <div className="auth-label-row">
           <label htmlFor="login-password">Password</label>
         </div>
 
-        <div className={`auth-input-wrapper ${fieldErrors.password ? "has-error" : ""}`}>
+        <div
+          className={`auth-input-wrapper ${fieldErrors.password ? "has-error" : ""
+            }`}
+        >
           <LockKeyhole size={18} aria-hidden="true" />
 
           <input
@@ -165,7 +177,9 @@ const LoginForm = () => {
             maxLength={72}
             disabled={isSubmitting}
             aria-invalid={Boolean(fieldErrors.password)}
-            aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
+            aria-describedby={
+              fieldErrors.password ? "login-password-error" : undefined
+            }
           />
 
           <button
@@ -184,8 +198,19 @@ const LoginForm = () => {
             {fieldErrors.password}
           </span>
         )}
+
+        {/* Forgot Password Link */}
+        <div className="auth-forgot-wrapper">
+          <Link
+            to="/forgot-password"
+            className="auth-forgot-link"
+          >
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
+      {/* Submit Button */}
       <button
         type="submit"
         className="auth-submit-button"
