@@ -7,6 +7,7 @@ import PublicRoute from "./routes/PublicRoute";
 import AppLayout from "./layouts/AppLayout";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionPage from "./features/transactions/TransactionPage";
+import CategoriesPage from "./features/categories/CategoriesPage";
 
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -38,7 +39,7 @@ function App() {
           />
           <Route
             path="/categories"
-            element={<div>Categories - Coming Soon</div>}
+            element={<CategoriesPage />}
           />
         </Route>
       </Route>
