@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Wallet,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import TransactionTable from "./components/TransactionTable";
 import TransactionFilters from "./components/TransactionFilters";
@@ -33,6 +34,71 @@ const initialFilters = {
   endDate: "",
   search: "",
   page: 1,
+};
+
+const pageVariants = {
+  hidden: {
+    opacity: 0,
+  },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.35,
+      staggerChildren: 0.09,
+    },
+  },
+};
+
+const sectionVariants = {
+  hidden: {
+    opacity: 0,
+    y: 18,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: "easeOut",
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: {
+    opacity: 0,
+    y: 18,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: "easeOut",
+    },
+  },
+};
+
+const contentVariants = {
+  hidden: {
+    opacity: 0,
+    y: 10,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: "easeOut",
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: {
+      duration: 0.2,
+    },
+  },
 };
 
 const extractArray = (response, keys) => {
@@ -59,6 +125,7 @@ const extractArray = (response, keys) => {
 
 const extractTransactionList = (response) => {
   const data = response?.data?.data ?? response?.data ?? {};
+
   const transactions =
     data?.transactions ||
     response?.transactions ||
@@ -70,12 +137,6 @@ const extractTransactionList = (response) => {
   };
 };
 
-const extractSavedTransaction = (response) =>
-  response?.data?.data?.transaction ||
-  response?.data?.transaction ||
-  response?.transaction ||
-  null;
-
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -86,6 +147,7 @@ const formatCurrency = (amount) =>
 function TransactionPage() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
+
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -96,9 +158,11 @@ function TransactionPage() {
   });
 
   const [filters, setFilters] = useState(initialFilters);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
   const [pageError, setPageError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -109,58 +173,70 @@ function TransactionPage() {
   const fetchCategories = useCallback(async () => {
     const response = await getCategories();
     const result = extractArray(response, ["categories"]);
+
     setCategories(result);
   }, []);
 
-  const fetchTransactions = useCallback(async () => {
-    setIsLoading(true);
-    setPageError("");
+  const fetchTransactions = useCallback(
+    async (requestedPage = filters.page) => {
+      setIsLoading(true);
+      setPageError("");
 
-    try {
-      const params = {
-        page: filters.page,
-        limit: 10,
-      };
+      try {
+        const params = {
+          page: requestedPage,
+          limit: 10,
+        };
 
-      if (filters.type) params.type = filters.type;
-      if (filters.category) params.category = filters.category;
-      if (filters.startDate) {
-        params.startDate = new Date(
-          `${filters.startDate}T00:00:00`
-        ).toISOString();
+        if (filters.type) {
+          params.type = filters.type;
+        }
+
+        if (filters.category) {
+          params.category = filters.category;
+        }
+
+        if (filters.startDate) {
+          params.startDate = new Date(
+            `${filters.startDate}T00:00:00`
+          ).toISOString();
+        }
+
+        if (filters.endDate) {
+          params.endDate = new Date(
+            `${filters.endDate}T23:59:59.999`
+          ).toISOString();
+        }
+
+        const response = await getTransactions(params);
+        const result = extractTransactionList(response);
+
+        setTransactions(result.transactions);
+
+        setPagination((current) => ({
+          ...current,
+          ...result.pagination,
+          page: result.pagination.page || requestedPage,
+          limit: result.pagination.limit || 10,
+          totalPages: result.pagination.totalPages || 1,
+        }));
+      } catch (error) {
+        setPageError(
+          error?.response?.data?.message ||
+          "Unable to load transactions. Please try again."
+        );
+      } finally {
+        setIsLoading(false);
       }
-      if (filters.endDate) {
-        params.endDate = new Date(
-          `${filters.endDate}T23:59:59.999`
-        ).toISOString();
-      }
-
-      const response = await getTransactions(params);
-      const result = extractTransactionList(response);
-
-      setTransactions(result.transactions);
-      setPagination((current) => ({
-        ...current,
-        ...result.pagination,
-        page: result.pagination.page || filters.page,
-        limit: result.pagination.limit || 10,
-        totalPages: result.pagination.totalPages || 1,
-      }));
-    } catch (error) {
-      setPageError(
-        error?.response?.data?.message ||
-        "Unable to load transactions. Please try again."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    filters.page,
-    filters.type,
-    filters.category,
-    filters.startDate,
-    filters.endDate,
-  ]);
+    },
+    [
+      filters.page,
+      filters.type,
+      filters.category,
+      filters.startDate,
+      filters.endDate,
+    ]
+  );
 
   useEffect(() => {
     fetchCategories().catch((error) => {
@@ -212,7 +288,10 @@ function TransactionPage() {
 
         return result;
       },
-      { income: 0, expenses: 0 }
+      {
+        income: 0,
+        expenses: 0,
+      }
     );
   }, [transactions]);
 
@@ -228,6 +307,7 @@ function TransactionPage() {
 
   const closeModal = useCallback(() => {
     if (isSubmitting) return;
+
     setIsModalOpen(false);
     setEditingTransaction(null);
   }, [isSubmitting]);
@@ -241,16 +321,32 @@ function TransactionPage() {
           editingTransaction._id || editingTransaction.id,
           payload
         );
+
         setNotice("Transaction updated successfully.");
       } else {
         await createTransaction(payload);
+
         setNotice("Transaction added successfully.");
       }
 
       setIsModalOpen(false);
       setEditingTransaction(null);
-      setFilters((current) => ({ ...current, page: 1 }));
-      await fetchTransactions();
+
+      // Always return to page 1 after saving.
+      setFilters((current) => ({
+        ...current,
+        page: 1,
+      }));
+
+      // Fetch page 1 directly to avoid using the previous page.
+      await fetchTransactions(1);
+    } catch (error) {
+      setPageError(
+        error?.response?.data?.message ||
+        "Unable to save transaction. Please try again."
+      );
+
+      throw error;
     } finally {
       setIsSubmitting(false);
     }
@@ -270,10 +366,14 @@ function TransactionPage() {
       setNotice("Transaction deleted successfully.");
 
       if (transactions.length === 1 && filters.page > 1) {
+        const previousPage = filters.page - 1;
+
         setFilters((current) => ({
           ...current,
-          page: current.page - 1,
+          page: previousPage,
         }));
+
+        await fetchTransactions(previousPage);
       } else {
         await fetchTransactions();
       }
@@ -306,186 +406,288 @@ function TransactionPage() {
   useEffect(() => {
     if (!notice) return undefined;
 
-    const timeout = window.setTimeout(() => setNotice(""), 3000);
+    const timeout = window.setTimeout(() => {
+      setNotice("");
+    }, 3000);
+
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
   const total = Number(pagination.total || 0);
   const page = Number(pagination.page || filters.page);
-  const totalPages = Math.max(1, Number(pagination.totalPages || 1));
+  const totalPages = Math.max(
+    1,
+    Number(pagination.totalPages || 1)
+  );
 
   return (
-    <main className="transactions-page">
-      <header className="transactions-page-header">
+    <motion.main
+      className="transactions-page"
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.header
+        className="transactions-page-header"
+        variants={sectionVariants}
+      >
         <div>
           <span className="transactions-eyebrow">
             YOUR FINANCIAL ACTIVITY
           </span>
+
           <h1>Transactions</h1>
-          <p>Track, manage and understand where your money goes.</p>
+
+          <p>
+            Track, manage and understand where your money goes.
+          </p>
         </div>
 
-        <button
+        <motion.button
           type="button"
           className="transaction-primary-button transactions-add-button"
           onClick={openCreateModal}
+          whileHover={{ y: -2, scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.2 }}
         >
           <Plus size={18} />
           Add transaction
-        </button>
-      </header>
+        </motion.button>
+      </motion.header>
 
-      {notice && (
-        <div className="transaction-notice" role="status">
-          {notice}
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {notice && (
+          <motion.div
+            key={notice}
+            className="transaction-notice"
+            role="status"
+            variants={contentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            {notice}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <section className="transactions-summary-grid">
-        <article className="transactions-summary-card">
+      <motion.section
+        className="transactions-summary-grid"
+        variants={sectionVariants}
+      >
+        <motion.article
+          className="transactions-summary-card"
+          variants={cardVariants}
+          whileHover={{ y: -5 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="transactions-summary-icon total">
             <ReceiptText size={20} />
           </div>
+
           <div>
             <span>Transactions on this page</span>
             <strong>{transactions.length}</strong>
           </div>
-        </article>
+        </motion.article>
 
-        <article className="transactions-summary-card">
+        <motion.article
+          className="transactions-summary-card"
+          variants={cardVariants}
+          whileHover={{ y: -5 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="transactions-summary-icon income">
             <ArrowDownLeft size={20} />
           </div>
+
           <div>
             <span>Income on this page</span>
             <strong className="income-text">
               {formatCurrency(summary.income)}
             </strong>
           </div>
-        </article>
+        </motion.article>
 
-        <article className="transactions-summary-card">
+        <motion.article
+          className="transactions-summary-card"
+          variants={cardVariants}
+          whileHover={{ y: -5 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="transactions-summary-icon expense">
             <ArrowUpRight size={20} />
           </div>
+
           <div>
             <span>Expenses on this page</span>
             <strong className="expense-text">
               {formatCurrency(summary.expenses)}
             </strong>
           </div>
-        </article>
+        </motion.article>
 
-        <article className="transactions-summary-card">
+        <motion.article
+          className="transactions-summary-card"
+          variants={cardVariants}
+          whileHover={{ y: -5 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="transactions-summary-icon count">
             <Wallet size={20} />
           </div>
+
           <div>
             <span>All transactions</span>
             <strong>{total}</strong>
           </div>
-        </article>
-      </section>
+        </motion.article>
+      </motion.section>
 
-      <TransactionFilters
-        filters={filters}
-        categories={categories}
-        onChange={handleFilterChange}
-        onReset={handleResetFilters}
-      />
+      <motion.div variants={sectionVariants}>
+        <TransactionFilters
+          filters={filters}
+          categories={categories}
+          onChange={handleFilterChange}
+          onReset={handleResetFilters}
+        />
+      </motion.div>
 
-      <section className="transactions-list-panel">
+      <motion.section
+        className="transactions-list-panel"
+        variants={sectionVariants}
+      >
         <div className="transactions-list-header">
           <div>
             <h2>All transactions</h2>
             <p>Your recorded income and expenses</p>
           </div>
 
-          <button
+          <motion.button
             type="button"
             className="transaction-refresh-button"
-            onClick={fetchTransactions}
+            onClick={() => fetchTransactions()}
             disabled={isLoading}
+            whileHover={!isLoading ? { y: -2 } : {}}
+            whileTap={!isLoading ? { scale: 0.96 } : {}}
           >
             <RefreshCw
               size={16}
-              className={isLoading ? "transaction-refreshing" : ""}
+              className={
+                isLoading ? "transaction-refreshing" : ""
+              }
             />
             Refresh
-          </button>
+          </motion.button>
         </div>
 
-        {pageError ? (
-          <div className="transaction-error-state">
-            <p>{pageError}</p>
-            <button
-              type="button"
-              className="transaction-secondary-button"
-              onClick={() => {
-                fetchCategories().catch(() => { });
-                fetchTransactions();
-              }}
+        <AnimatePresence mode="wait">
+          {pageError ? (
+            <motion.div
+              key="error"
+              className="transaction-error-state"
+              variants={contentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
             >
-              Try again
-            </button>
-          </div>
-        ) : isLoading ? (
-          <div className="transaction-loading-state">
-            <span className="transaction-loading-spinner" />
-            <p>Loading transactions...</p>
-          </div>
-        ) : (
-          <>
-            <TransactionTable
-              transactions={visibleTransactions}
-              onEdit={openEditModal}
-              onDelete={setDeletingTransaction}
-            />
+              <p>{pageError}</p>
 
-            <div className="transaction-pagination">
-              <span>
-                Showing {total === 0 ? 0 : (page - 1) * 10 + 1}
-                {"–"}
-                {Math.min(page * 10, total)} of {total} transactions
-              </span>
+              <button
+                type="button"
+                className="transaction-secondary-button"
+                onClick={() => {
+                  fetchCategories().catch(() => { });
+                  fetchTransactions();
+                }}
+              >
+                Try again
+              </button>
+            </motion.div>
+          ) : isLoading ? (
+            <motion.div
+              key="loading"
+              className="transaction-loading-state"
+              variants={contentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <span className="transaction-loading-spinner" />
+              <p>Loading transactions...</p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="transactions"
+              variants={contentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <TransactionTable
+                transactions={visibleTransactions}
+                onEdit={openEditModal}
+                onDelete={setDeletingTransaction}
+              />
 
-              <div>
-                <button
-                  type="button"
-                  aria-label="Previous page"
-                  disabled={page <= 1 || isLoading}
-                  onClick={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      page: current.page - 1,
-                    }))
-                  }
-                >
-                  <ChevronLeft size={18} />
-                </button>
-
+              <div className="transaction-pagination">
                 <span>
-                  Page {page} of {totalPages}
+                  Showing {total === 0 ? 0 : (page - 1) * 10 + 1}
+                  {"–"}
+                  {Math.min(page * 10, total)} of {total} transactions
                 </span>
 
-                <button
-                  type="button"
-                  aria-label="Next page"
-                  disabled={page >= totalPages || isLoading}
-                  onClick={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      page: current.page + 1,
-                    }))
-                  }
-                >
-                  <ChevronRight size={18} />
-                </button>
+                <div>
+                  <motion.button
+                    type="button"
+                    aria-label="Previous page"
+                    disabled={page <= 1 || isLoading}
+                    onClick={() =>
+                      setFilters((current) => ({
+                        ...current,
+                        page: current.page - 1,
+                      }))
+                    }
+                    whileHover={
+                      page > 1 ? { scale: 1.06 } : {}
+                    }
+                    whileTap={
+                      page > 1 ? { scale: 0.94 } : {}
+                    }
+                  >
+                    <ChevronLeft size={18} />
+                  </motion.button>
+
+                  <span>
+                    Page {page} of {totalPages}
+                  </span>
+
+                  <motion.button
+                    type="button"
+                    aria-label="Next page"
+                    disabled={page >= totalPages || isLoading}
+                    onClick={() =>
+                      setFilters((current) => ({
+                        ...current,
+                        page: current.page + 1,
+                      }))
+                    }
+                    whileHover={
+                      page < totalPages ? { scale: 1.06 } : {}
+                    }
+                    whileTap={
+                      page < totalPages ? { scale: 0.94 } : {}
+                    }
+                  >
+                    <ChevronRight size={18} />
+                  </motion.button>
+                </div>
               </div>
-            </div>
-          </>
-        )}
-      </section>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.section>
 
       <TransactionModal
         isOpen={isModalOpen}
@@ -499,12 +701,14 @@ function TransactionPage() {
       <DeleteTransactionModal
         transaction={deletingTransaction}
         onClose={() => {
-          if (!isDeleting) setDeletingTransaction(null);
+          if (!isDeleting) {
+            setDeletingTransaction(null);
+          }
         }}
         onConfirm={handleDeleteTransaction}
         isDeleting={isDeleting}
       />
-    </main>
+    </motion.main>
   );
 }
 

@@ -1,50 +1,59 @@
 
+import { motion, AnimatePresence } from "framer-motion";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
-function TransactionFilters({
-  filters,
-  categories,
-  onChange,
-  onReset,
-}) {
+function TransactionFilters({ filters, categories, onChange, onReset }) {
   const filteredCategories = categories.filter(
-    (category) =>
-      !filters.type || category.type === filters.type
+    (category) => !filters.type || category.type === filters.type
   );
 
   const updateFilter = (key, value) => {
     onChange({ ...filters, [key]: value, page: 1 });
   };
 
-  const hasFilters =
+  const hasFilters = Boolean(
     filters.type ||
     filters.category ||
     filters.startDate ||
     filters.endDate ||
-    filters.search;
+    filters.search
+  );
 
   return (
-    <section className="transaction-filters">
+    <motion.section
+      className="transaction-filters"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.12 }}
+    >
       <div className="transaction-filter-heading">
         <div className="transaction-filter-title">
           <SlidersHorizontal size={17} />
           <span>Filters</span>
         </div>
 
-        {hasFilters && (
-          <button
-            type="button"
-            className="transaction-reset-button"
-            onClick={onReset}
-          >
-            <X size={14} />
-            Clear all
-          </button>
-        )}
+        <AnimatePresence>
+          {hasFilters && (
+            <motion.button
+              type="button"
+              className="transaction-reset-button"
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              onClick={onReset}
+            >
+              <X size={14} />
+              Clear all
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="transaction-filter-grid">
-        <label className="transaction-search-field">
+        <motion.label
+          className="transaction-search-field"
+          whileFocus={{ scale: 1.01 }}
+        >
           <Search size={17} />
           <input
             type="search"
@@ -54,13 +63,11 @@ function TransactionFilters({
               updateFilter("search", event.target.value)
             }
           />
-        </label>
+        </motion.label>
 
         <select
           value={filters.type}
-          onChange={(event) =>
-            updateFilter("type", event.target.value)
-          }
+          onChange={(event) => updateFilter("type", event.target.value)}
           aria-label="Transaction type"
         >
           <option value="">All types</option>
@@ -109,7 +116,7 @@ function TransactionFilters({
           />
         </label>
       </div>
-    </section>
+    </motion.section>
   );
 }
 

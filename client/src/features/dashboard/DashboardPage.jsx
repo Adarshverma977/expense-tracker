@@ -1,12 +1,12 @@
+
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  ArrowUpRight,
-  ArrowDownRight,
-  CalendarDays,
+  Wallet, TrendingUp, TrendingDown, ArrowUpRight,
+  ArrowDownRight, CalendarDays, Receipt, RefreshCw,
+  ArrowRight, Activity
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import api from "../../services/api";
 import MonthlyTrendsChart from "./MonthlyTrendsChart";
@@ -14,21 +14,54 @@ import CategoryBreakdownChart from "./CategoryBreakdownChart";
 
 import "./DashboardPage.css";
 
-const formatCurrency = (amount, currency = "INR") => {
-  return new Intl.NumberFormat("en-IN", {
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency,
+    currency: "INR",
     maximumFractionDigits: 2,
   }).format(Number(amount || 0));
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.09 },
+  },
 };
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 22 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: "easeOut" },
+  },
+};
+
+const Skeleton = () => (
+  <div className="dashboard-skeleton">
+    <div className="skeleton-heading skeleton" />
+    <div className="skeleton-cards">
+      {[1, 2, 3].map((item) => (
+        <div className="skeleton-card skeleton" key={item} />
+      ))}
+    </div>
+    <div className="skeleton-content skeleton" />
+    <div className="skeleton-content skeleton" />
+  </div>
+);
+
 const DashboardPage = () => {
+  const navigate = useNavigate();
+
   const [dashboard, setDashboard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    let active = true;
+
     const fetchDashboard = async () => {
       try {
         setIsLoading(true);
@@ -36,45 +69,49 @@ const DashboardPage = () => {
 
         const response = await api.get("/dashboard");
 
-        setDashboard(response.data.data);
+        if (active) {
+          setDashboard(response.data.data);
+        }
       } catch (err) {
-        setError(
-          err.response?.data?.message ||
-          "Unable to load dashboard data."
-        );
+        if (active) {
+          setError(
+            err.response?.data?.message ||
+            "Unable to load dashboard data."
+          );
+        }
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
     fetchDashboard();
+
+    return () => {
+      active = false;
+    };
   }, [refreshKey]);
 
-  if (isLoading) {
-    return (
-      <div className="dashboard-state">
-        Loading your finances...
-      </div>
-    );
-  }
+  if (isLoading) return <Skeleton />;
 
   if (error) {
     return (
-      <div className="dashboard-state dashboard-error">
+      <motion.div
+        className="dashboard-state dashboard-error"
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Activity size={32} />
+        <h3>Something went wrong</h3>
         <p>{error}</p>
-
         <button onClick={() => setRefreshKey((prev) => prev + 1)}>
-          Try again
+          <RefreshCw size={16} /> Try again
         </button>
-      </div>
+      </motion.div>
     );
   }
 
-  // Backend response uses "summary", not "overview".
   const summary = dashboard?.summary || {};
   const monthly = dashboard?.monthly || {};
-
-  // Backend currently does not return a currency field.
   const currency = dashboard?.currency || "INR";
 
   const cards = [
@@ -101,130 +138,107 @@ const DashboardPage = () => {
     },
   ];
 
+  const recentTransactions = dashboard?.recentTransactions || [];
+
+  const date = new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+
   return (
-    <div className="dashboard-page">
-      {/* Welcome Section */}
-      <section className="dashboard-welcome">
+    <motion.div
+      className="dashboard-page"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.section className="dashboard-welcome" variants={itemVariants}>
         <div>
-          <span className="dashboard-eyebrow">
-            YOUR FINANCIAL OVERVIEW
-          </span>
-
+          <span className="dashboard-eyebrow">YOUR FINANCIAL OVERVIEW</span>
           <h2>Welcome back!</h2>
-
           <p>Here is what's happening with your money.</p>
         </div>
 
         <div className="dashboard-date">
           <CalendarDays size={17} />
-
-          {new Intl.DateTimeFormat("en-IN", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          }).format(new Date())}
+          {date}
         </div>
-      </section>
+      </motion.section>
 
-      {/* Summary Cards */}
       <section className="dashboard-summary">
-        {cards.map((card) => {
+        {cards.map((card, index) => {
           const Icon = card.icon;
 
           return (
-            <article
+            <motion.article
               key={card.title}
+              variants={itemVariants}
+              whileHover={{ y: -6, transition: { duration: 0.2 } }}
               className={`summary-card ${card.className}`}
             >
               <div className="summary-card-top">
                 <span>{card.title}</span>
-
                 <div className="summary-icon">
-                  <Icon size={20} />
+                  <Icon size={21} />
                 </div>
               </div>
 
               <h3>
-                {formatCurrency(card.amount, currency)}
+                <AnimatedAmount
+                  amount={card.amount}
+                  currency={currency}
+                />
               </h3>
 
               <p>{card.description}</p>
-            </article>
+            </motion.article>
           );
         })}
       </section>
 
-      {/* Monthly Overview */}
-      <section className="monthly-overview">
+      <motion.section className="monthly-overview" variants={itemVariants}>
         <div className="section-heading">
           <div>
-            <span className="dashboard-eyebrow">
-              THIS MONTH
-            </span>
-
+            <span className="dashboard-eyebrow">THIS MONTH</span>
             <h3>Monthly overview</h3>
           </div>
 
           <span className="monthly-badge">
-            <CalendarDays size={14} />
-            Current month
+            <CalendarDays size={14} /> Current month
           </span>
         </div>
 
         <div className="monthly-metrics">
-          <article>
-            <div className="metric-label">
-              <ArrowUpRight size={17} />
-              Monthly Income
-            </div>
+          <Metric
+            icon={ArrowUpRight}
+            label="Monthly Income"
+            amount={monthly.income}
+            count={monthly.incomeCount}
+            type="income-text"
+          />
 
-            <strong className="income-text">
-              {formatCurrency(monthly.income, currency)}
-            </strong>
+          <Metric
+            icon={ArrowDownRight}
+            label="Monthly Expenses"
+            amount={monthly.expenses}
+            count={monthly.expenseCount}
+            type="expense-text"
+          />
 
-            <span>
-              {monthly.incomeCount || 0} transactions
-            </span>
-          </article>
-
-          <article>
-            <div className="metric-label">
-              <ArrowDownRight size={17} />
-              Monthly Expenses
-            </div>
-
-            <strong className="expense-text">
-              {formatCurrency(monthly.expenses, currency)}
-            </strong>
-
-            <span>
-              {monthly.expenseCount || 0} transactions
-            </span>
-          </article>
-
-          <article>
-            <div className="metric-label">
-              <Wallet size={17} />
-              Monthly Balance
-            </div>
-
-            <strong>
-              {formatCurrency(monthly.balance, currency)}
-            </strong>
-
-            <span>Income minus expenses</span>
-          </article>
+          <Metric
+            icon={Wallet}
+            label="Monthly Balance"
+            amount={monthly.balance}
+            description="Income minus expenses"
+          />
         </div>
-      </section>
+      </motion.section>
 
-      {/* Financial Analytics */}
-      <section className="dashboard-analytics">
+      <motion.section className="dashboard-analytics" variants={itemVariants}>
         <div className="section-heading">
           <div>
-            <span className="dashboard-eyebrow">
-              FINANCIAL INSIGHTS
-            </span>
-
+            <span className="dashboard-eyebrow">FINANCIAL INSIGHTS</span>
             <h3>Your spending analytics</h3>
           </div>
         </div>
@@ -238,9 +252,7 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <MonthlyTrendsChart
-              data={dashboard?.monthlyTrends || []}
-            />
+            <MonthlyTrendsChart data={dashboard?.monthlyTrends || []} />
           </article>
 
           <article className="analytics-panel">
@@ -256,9 +268,113 @@ const DashboardPage = () => {
             />
           </article>
         </div>
-      </section>
-    </div>
+      </motion.section>
+
+      <motion.section className="recent-transactions" variants={itemVariants}>
+        <div className="section-heading">
+          <div>
+            <span className="dashboard-eyebrow">YOUR ACTIVITY</span>
+            <h3>Recent transactions</h3>
+          </div>
+
+          <button
+            className="view-all-button"
+            onClick={() => navigate("/transactions")}
+          >
+            View all <ArrowRight size={15} />
+          </button>
+        </div>
+
+        <div className="recent-list">
+          <AnimatePresence>
+            {recentTransactions.length ? (
+              recentTransactions.map((transaction) => {
+                const isIncome = transaction.type === "income";
+
+                return (
+                  <motion.div
+                    className="recent-transaction-item"
+                    key={transaction._id}
+                    initial={{ opacity: 0, x: -15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    layout
+                  >
+                    <div
+                      className={`recent-transaction-icon ${isIncome ? "recent-income" : "recent-expense"
+                        }`}
+                    >
+                      {isIncome ? (
+                        <TrendingUp size={19} />
+                      ) : (
+                        <Receipt size={19} />
+                      )}
+                    </div>
+
+                    <div className="recent-transaction-details">
+                      <strong>{transaction.title}</strong>
+                      <span>
+                        {transaction.category?.name || "Uncategorized"}
+                        {" · "}
+                        {new Date(transaction.date).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+
+                    <strong
+                      className={
+                        isIncome ? "income-text" : "expense-text"
+                      }
+                    >
+                      {isIncome ? "+" : "-"}
+                      {formatCurrency(transaction.amount)}
+                    </strong>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="recent-empty">
+                <Receipt size={28} />
+                <p>No transactions yet.</p>
+                <span>Your recent activity will appear here.</span>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.section>
+    </motion.div>
   );
 };
+
+const Metric = ({ icon: Icon, label, amount, count, type, description }) => (
+  <motion.article whileHover={{ y: -3 }}>
+    <div className="metric-label">
+      <Icon size={17} />
+      {label}
+    </div>
+    <strong className={type || ""}>{formatCurrency(amount)}</strong>
+    <span>
+      {count !== undefined ? `${count} transactions` : description}
+    </span>
+  </motion.article>
+);
+
+const AnimatedAmount = ({ amount, currency }) => (
+  <motion.span
+    key={String(amount)}
+    initial={{ opacity: 0.4, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.45 }}
+  >
+    {new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0))}
+  </motion.span>
+);
 
 export default DashboardPage;

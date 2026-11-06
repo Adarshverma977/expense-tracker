@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { LoaderCircle } from "lucide-react";
 
 const initialForm = {
@@ -15,9 +16,12 @@ const initialForm = {
 const toLocalDateTime = (date) => {
   const value = new Date(date);
   const offset = value.getTimezoneOffset() * 60000;
-  return new Date(value.getTime() - offset)
-    .toISOString()
-    .slice(0, 16);
+  return new Date(value.getTime() - offset).toISOString().slice(0, 16);
+};
+
+const fieldVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 },
 };
 
 function TransactionForm({
@@ -47,7 +51,10 @@ function TransactionForm({
         paymentMethod: transaction.paymentMethod || "upi",
       });
     } else {
-      setForm(initialForm);
+      setForm({
+        ...initialForm,
+        date: new Date().toISOString().slice(0, 16),
+      });
     }
 
     setError("");
@@ -74,6 +81,7 @@ function TransactionForm({
         ? nextCategory._id || nextCategory.id
         : "",
     }));
+
     setError("");
   };
 
@@ -127,40 +135,52 @@ function TransactionForm({
   };
 
   return (
-    <form className="transaction-form" onSubmit={handleSubmit}>
-      <div className="transaction-type-switch">
-        <button
+    <motion.form
+      className="transaction-form"
+      onSubmit={handleSubmit}
+      initial="hidden"
+      animate="visible"
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.055 } },
+      }}
+    >
+      <motion.div
+        className="transaction-type-switch"
+        variants={fieldVariants}
+      >
+        <motion.button
           type="button"
           className={form.type === "expense" ? "active expense" : ""}
           onClick={() => handleTypeChange("expense")}
+          whileTap={{ scale: 0.97 }}
         >
           Expense
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
           type="button"
           className={form.type === "income" ? "active income" : ""}
           onClick={() => handleTypeChange("income")}
+          whileTap={{ scale: 0.97 }}
         >
           Income
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      <label className="transaction-form-field">
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Transaction title</span>
         <input
           type="text"
           placeholder="e.g. Monthly groceries"
           maxLength={100}
           value={form.title}
-          onChange={(event) =>
-            updateField("title", event.target.value)
-          }
+          onChange={(event) => updateField("title", event.target.value)}
           required
         />
-      </label>
+      </motion.label>
 
-      <label className="transaction-form-field">
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Amount</span>
         <div className="transaction-amount-input">
           <span>₹</span>
@@ -170,22 +190,18 @@ function TransactionForm({
             min="0.01"
             step="0.01"
             value={form.amount}
-            onChange={(event) =>
-              updateField("amount", event.target.value)
-            }
+            onChange={(event) => updateField("amount", event.target.value)}
             required
           />
         </div>
-      </label>
+      </motion.label>
 
-      <div className="transaction-form-row">
+      <motion.div className="transaction-form-row" variants={fieldVariants}>
         <label className="transaction-form-field">
           <span>Category</span>
           <select
             value={form.category}
-            onChange={(event) =>
-              updateField("category", event.target.value)
-            }
+            onChange={(event) => updateField("category", event.target.value)}
             required
           >
             <option value="">Select category</option>
@@ -215,22 +231,22 @@ function TransactionForm({
             <option value="other">Other</option>
           </select>
         </label>
-      </div>
+      </motion.div>
 
-      <label className="transaction-form-field">
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Date</span>
         <input
           type="datetime-local"
           value={form.date}
-          onChange={(event) =>
-            updateField("date", event.target.value)
-          }
+          onChange={(event) => updateField("date", event.target.value)}
           required
         />
-      </label>
+      </motion.label>
 
-      <label className="transaction-form-field">
-        <span>Description <small>Optional</small></span>
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
+        <span>
+          Description <small>Optional</small>
+        </span>
         <textarea
           rows={3}
           maxLength={500}
@@ -240,28 +256,43 @@ function TransactionForm({
             updateField("description", event.target.value)
           }
         />
-      </label>
+      </motion.label>
 
-      {error && (
-        <p className="transaction-form-error" role="alert">
-          {error}
-        </p>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            className="transaction-form-error"
+            role="alert"
+            initial={{ opacity: 0, height: 0, y: -5 }}
+            animate={{ opacity: 1, height: "auto", y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -5 }}
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
 
-      <div className="transaction-form-actions">
-        <button
+      <motion.div
+        className="transaction-form-actions"
+        variants={fieldVariants}
+      >
+        <motion.button
           type="button"
           className="transaction-secondary-button"
           onClick={onCancel}
           disabled={isSubmitting}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
         >
           Cancel
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
           type="submit"
           className="transaction-primary-button"
           disabled={isSubmitting}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
         >
           {isSubmitting ? (
             <>
@@ -273,9 +304,9 @@ function TransactionForm({
           ) : (
             "Add transaction"
           )}
-        </button>
-      </div>
-    </form>
+        </motion.button>
+      </motion.div>
+    </motion.form>
   );
 }
 

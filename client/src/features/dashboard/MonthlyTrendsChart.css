@@ -1,4 +1,4 @@
-.monthly-trends-chart {
+/* .monthly-trends-chart {
   width: 100%;
   height: 320px;
   min-width: 0;
@@ -27,6 +27,19 @@
 }
 
 @media (max-width: 520px) {
+  .monthly-trends-chart {
+    height: 280px;
+  }
+}
+ */
+
+.monthly-trends-chart {
+  width: 100%;
+  height: 320px;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
   .monthly-trends-chart {
     height: 280px;
   }

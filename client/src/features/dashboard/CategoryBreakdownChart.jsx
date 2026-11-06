@@ -107,7 +107,7 @@ function CategoryBreakdownChart({ data = [] }) {
 
                 <div className="category-legend-details">
                   <span className="category-legend-name">
-                    {category.icon} {category.name}
+                    {category.name}
                   </span>
                   <span className="category-legend-count">
                     {category.transactionCount} transactions
