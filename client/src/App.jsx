@@ -5,6 +5,9 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 
 import AppLayout from "./layouts/AppLayout";
+
+import LandingPage from "./features/landing/LandingPage";
+
 import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionPage from "./features/transactions/TransactionPage";
 import CategoriesPage from "./features/categories/CategoriesPage";
@@ -17,26 +20,35 @@ import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 function App() {
   return (
     <Routes>
+      {/* Public landing page */}
+      <Route path="/" element={<LandingPage />} />
+
+      {/* Authentication routes */}
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+
         <Route
           path="/forgot-password"
           element={<ForgotPasswordPage />}
         />
+
         <Route
           path="/reset-password"
           element={<ResetPasswordPage />}
         />
       </Route>
 
+      {/* Protected application routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+
           <Route
             path="/transactions"
             element={<TransactionPage />}
           />
+
           <Route
             path="/categories"
             element={<CategoriesPage />}
@@ -44,14 +56,10 @@ function App() {
         </Route>
       </Route>
 
-      <Route
-        path="/"
-        element={<Navigate to="/dashboard" replace />}
-      />
-
+      {/* Fallback */}
       <Route
         path="*"
-        element={<div>404 - Page Not Found</div>}
+        element={<Navigate to="/" replace />}
       />
     </Routes>
   );

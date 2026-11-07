@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
+  ArrowLeft,
   ShieldCheck,
   Sparkles,
   Wallet,
@@ -27,7 +28,9 @@ const RegisterPage = () => {
 
   const handleResendOTP = async () => {
     if (!registrationData) {
-      throw new Error("Registration details are unavailable. Please register again.");
+      throw new Error(
+        "Registration details are unavailable. Please register again."
+      );
     }
 
     await sendRegistrationOTP(registrationData);
@@ -91,7 +94,9 @@ const RegisterPage = () => {
 
             <div>
               <strong>Your finances, protected.</strong>
-              <span>Secure account creation with email verification.</span>
+              <span>
+                Secure account creation with email verification.
+              </span>
             </div>
           </motion.div>
 
@@ -111,6 +116,18 @@ const RegisterPage = () => {
           <span className="auth-mobile-brand">Moneta</span>
           <ThemeToggle />
         </div>
+
+        <motion.div
+          className="auth-home-navigation"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Link to="/" className="auth-back-home">
+            <ArrowLeft size={17} />
+            <span>Back to Home</span>
+          </Link>
+        </motion.div>
 
         <motion.div
           key={isOtpStep ? "otp" : "register"}

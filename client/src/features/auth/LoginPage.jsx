@@ -1,7 +1,9 @@
+
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
+  ArrowLeft,
   ShieldCheck,
   Sparkles,
   Wallet,
@@ -69,7 +71,9 @@ const LoginPage = () => {
 
             <div>
               <strong>Your finances, protected.</strong>
-              <span>Private and secure personal finance tracking.</span>
+              <span>
+                Private and secure personal finance tracking.
+              </span>
             </div>
           </motion.div>
 
@@ -90,6 +94,19 @@ const LoginPage = () => {
           <ThemeToggle />
         </div>
 
+        {/* Back to Home */}
+        <motion.div
+          className="auth-home-navigation"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Link to="/" className="auth-back-home">
+            <ArrowLeft size={17} />
+            <span>Back to Home</span>
+          </Link>
+        </motion.div>
+
         <motion.div
           className="auth-form-container"
           initial={{ opacity: 0, y: 18 }}
@@ -100,8 +117,7 @@ const LoginPage = () => {
 
           <div className="auth-form-footer">
             <span>
-              Don't have an account?
-              {" "}
+              Don't have an account?{" "}
               <Link to="/register">Create account</Link>
             </span>
           </div>

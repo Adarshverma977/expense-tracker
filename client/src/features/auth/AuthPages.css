@@ -829,3 +829,31 @@
     scroll-behavior: auto !important;
   }
 }
+
+
+.auth-home-navigation {
+  width: 100%;
+  max-width: 492px;
+  margin: 0 auto 24px;
+}
+
+.auth-back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.auth-back-home:hover {
+  color: var(--color-primary);
+  transform: translateX(-3px);
+}
+
+.auth-back-home svg {
+  flex-shrink: 0;
+}
