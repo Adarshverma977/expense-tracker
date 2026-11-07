@@ -1655,3 +1655,51 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Mobile authentication navigation */
+
+.landing-mobile-auth {
+  display: none;
+}
+
+@media (max-width: 650px) {
+  .landing-mobile-auth {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 14px 8px 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--landing-border);
+  }
+
+  .landing-mobile-auth > a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 43px;
+    border: 1px solid var(--landing-border);
+    border-radius: 10px;
+    color: var(--landing-text);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .landing-mobile-auth > a:hover {
+    border-color: var(--landing-accent);
+  }
+
+  .landing-mobile-auth > .landing-mobile-register {
+    border-color: #176b45;
+    color: #ffffff;
+    background: #176b45;
+  }
+
+  [data-theme="dark"] .landing-mobile-auth > .landing-mobile-register {
+    border-color: #65c995;
+    color: #102018;
+    background: #65c995;
+  }
+}

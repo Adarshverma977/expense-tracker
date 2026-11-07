@@ -274,13 +274,31 @@ function LandingPage() {
             <button onClick={() => scrollToSection("features")}>
               Features
             </button>
+
             <button onClick={() => scrollToSection("how-it-works")}>
               How it works
             </button>
+
             <button onClick={() => scrollToSection("about")}>
               About
             </button>
+
+            <div className="landing-mobile-auth">
+              <Link to="/login" onClick={closeMenu}>
+                Log in
+              </Link>
+
+              <Link
+                to="/register"
+                className="landing-mobile-register"
+                onClick={closeMenu}
+              >
+                Get started
+                <ArrowUpRight size={16} />
+              </Link>
+            </div>
           </nav>
+
 
           <div className="landing-navbar-actions">
             <ThemeToggle />

@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useCallback,
@@ -20,7 +21,10 @@ export const AuthProvider = ({ children }) => {
       const response = await getCurrentUser();
 
       const currentUser =
-        response?.data?.user ?? response?.user ?? response?.data ?? null;
+        response?.data?.user ??
+        response?.user ??
+        response?.data ??
+        null;
 
       setUser(currentUser);
 
@@ -41,7 +45,11 @@ export const AuthProvider = ({ children }) => {
       try {
         await refreshUser();
       } catch (error) {
-        console.error("Authentication initialization failed:", error);
+        console.error(
+          "Authentication initialization failed:",
+          error
+        );
+
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -52,13 +60,14 @@ export const AuthProvider = ({ children }) => {
   }, [refreshUser]);
 
   // Logout user
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await logoutUser();
     } finally {
+      // Clear local authentication state even if API fails
       setUser(null);
     }
-  };
+  }, []);
 
   const value = {
     user,
@@ -69,7 +78,11 @@ export const AuthProvider = ({ children }) => {
     logout,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 // Custom hook
