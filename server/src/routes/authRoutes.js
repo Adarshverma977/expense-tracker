@@ -21,7 +21,8 @@ const {
 const validateRequest = require("../middleware/validateRequest");
 
 const {
-  authLimiter,
+  loginLimiter,
+  passwordResetLimiter,
   otpSendLimiter,
   otpVerifyLimiter,
   otpEmailLimiter,
@@ -51,21 +52,26 @@ router.post(
 // Forgot Password
 router.post(
   "/forgot-password",
-  authLimiter,
+  passwordResetLimiter,
   validateRequest(forgotPasswordSchema),
-  forgotPassword,
+  forgotPassword
 );
 
 // Reset Password
 router.post(
   "/reset-password",
-  authLimiter,
+  passwordResetLimiter,
   validateRequest(resetPasswordSchema),
-  resetPassword,
+  resetPassword
 );
 
 // Login
-router.post("/login", authLimiter, validateRequest(loginSchema), login);
+router.post(
+  "/login",
+  loginLimiter,
+  validateRequest(loginSchema),
+  login
+);
 
 // Logout
 router.post("/logout", logout);

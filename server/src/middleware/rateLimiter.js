@@ -12,15 +12,29 @@ const apiLimiter = rateLimit({
   },
 });
 
-// Authentication rate limiter
-const authLimiter = rateLimit({
+// Login rate limiter
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    status: "fail",
+    message:
+      "Too many failed login attempts. Please try again after 15 minutes.",
+  },
+});
+
+// Password recovery rate limiter
+const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {
     status: "fail",
-    message: "Too many authentication attempts. Please try again later.",
+    message: "Too many password recovery requests. Please try again later.",
   },
 });
 
@@ -48,12 +62,15 @@ const otpVerifyLimiter = rateLimit({
   },
 });
 
+// Per-email OTP rate limiter
 const otpEmailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
 
   keyGenerator: (req) => {
-    return `email:${req.body.email.trim().toLowerCase()}`;
+    return `email:${String(req.body.email || "")
+      .trim()
+      .toLowerCase()}`;
   },
 
   standardHeaders: "draft-8",
@@ -67,7 +84,8 @@ const otpEmailLimiter = rateLimit({
 
 module.exports = {
   apiLimiter,
-  authLimiter,
+  loginLimiter,
+  passwordResetLimiter,
   otpSendLimiter,
   otpVerifyLimiter,
   otpEmailLimiter,
