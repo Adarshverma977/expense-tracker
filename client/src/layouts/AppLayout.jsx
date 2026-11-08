@@ -35,6 +35,11 @@ const navigationItems = [
     path: "/categories",
     icon: Tags,
   },
+  {
+    label: "Budgets",
+    path: "/budgets",
+    icon: Wallet,
+  },
 ];
 
 const AppLayout = () => {
@@ -43,32 +48,27 @@ const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get current page information
   const currentPage = navigationItems.find(
     (item) => item.path === location.pathname
   );
 
   const pageTitle = currentPage?.label || "Your finances";
 
-  // Dynamic user information
   const userName = user?.name || "My Account";
   const userEmail = user?.email || "Personal workspace";
 
   const userInitial =
     userName.trim().charAt(0).toUpperCase() || "U";
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await logout();
-
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout failed:", error);
     }
   };
 
-  // Reusable navigation
   const renderNavigation = (className) => (
     <nav className={className}>
       {navigationItems.map((item) => {

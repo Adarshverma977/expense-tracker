@@ -308,10 +308,10 @@
   }
 
   .mobile-navigation-items {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
 
   .mobile-navigation-items .sidebar-nav-item {
     flex-direction: column;
