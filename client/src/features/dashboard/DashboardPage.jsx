@@ -2,15 +2,23 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Wallet, TrendingUp, TrendingDown, ArrowUpRight,
-  ArrowDownRight, CalendarDays, Receipt, RefreshCw,
-  ArrowRight, Activity
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  CalendarDays,
+  Receipt,
+  RefreshCw,
+  ArrowRight,
+  Activity,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import api from "../../services/api";
 import MonthlyTrendsChart from "./MonthlyTrendsChart";
 import CategoryBreakdownChart from "./CategoryBreakdownChart";
+import BudgetOverview from "./BudgetOverview";
 
 import "./DashboardPage.css";
 
@@ -41,11 +49,13 @@ const itemVariants = {
 const Skeleton = () => (
   <div className="dashboard-skeleton">
     <div className="skeleton-heading skeleton" />
+
     <div className="skeleton-cards">
       {[1, 2, 3].map((item) => (
         <div className="skeleton-card skeleton" key={item} />
       ))}
     </div>
+
     <div className="skeleton-content skeleton" />
     <div className="skeleton-content skeleton" />
   </div>
@@ -80,7 +90,9 @@ const DashboardPage = () => {
           );
         }
       } finally {
-        if (active) setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -91,7 +103,9 @@ const DashboardPage = () => {
     };
   }, [refreshKey]);
 
-  if (isLoading) return <Skeleton />;
+  if (isLoading) {
+    return <Skeleton />;
+  }
 
   if (error) {
     return (
@@ -101,10 +115,14 @@ const DashboardPage = () => {
         animate={{ opacity: 1, y: 0 }}
       >
         <Activity size={32} />
+
         <h3>Something went wrong</h3>
+
         <p>{error}</p>
+
         <button onClick={() => setRefreshKey((prev) => prev + 1)}>
-          <RefreshCw size={16} /> Try again
+          <RefreshCw size={16} />
+          Try again
         </button>
       </motion.div>
     );
@@ -153,10 +171,18 @@ const DashboardPage = () => {
       initial="hidden"
       animate="visible"
     >
-      <motion.section className="dashboard-welcome" variants={itemVariants}>
+      {/* Welcome Section */}
+      <motion.section
+        className="dashboard-welcome"
+        variants={itemVariants}
+      >
         <div>
-          <span className="dashboard-eyebrow">YOUR FINANCIAL OVERVIEW</span>
+          <span className="dashboard-eyebrow">
+            YOUR FINANCIAL OVERVIEW
+          </span>
+
           <h2>Welcome back!</h2>
+
           <p>Here is what's happening with your money.</p>
         </div>
 
@@ -166,19 +192,24 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
+      {/* Financial Summary Cards */}
       <section className="dashboard-summary">
-        {cards.map((card, index) => {
+        {cards.map((card) => {
           const Icon = card.icon;
 
           return (
             <motion.article
               key={card.title}
               variants={itemVariants}
-              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              whileHover={{
+                y: -6,
+                transition: { duration: 0.2 },
+              }}
               className={`summary-card ${card.className}`}
             >
               <div className="summary-card-top">
                 <span>{card.title}</span>
+
                 <div className="summary-icon">
                   <Icon size={21} />
                 </div>
@@ -197,7 +228,11 @@ const DashboardPage = () => {
         })}
       </section>
 
-      <motion.section className="monthly-overview" variants={itemVariants}>
+      {/* Monthly Overview */}
+      <motion.section
+        className="monthly-overview"
+        variants={itemVariants}
+      >
         <div className="section-heading">
           <div>
             <span className="dashboard-eyebrow">THIS MONTH</span>
@@ -205,7 +240,8 @@ const DashboardPage = () => {
           </div>
 
           <span className="monthly-badge">
-            <CalendarDays size={14} /> Current month
+            <CalendarDays size={14} />
+            Current month
           </span>
         </div>
 
@@ -235,10 +271,20 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      <motion.section className="dashboard-analytics" variants={itemVariants}>
+      {/* Budget Overview - New Integration */}
+      <BudgetOverview />
+
+      {/* Financial Analytics */}
+      <motion.section
+        className="dashboard-analytics"
+        variants={itemVariants}
+      >
         <div className="section-heading">
           <div>
-            <span className="dashboard-eyebrow">FINANCIAL INSIGHTS</span>
+            <span className="dashboard-eyebrow">
+              FINANCIAL INSIGHTS
+            </span>
+
             <h3>Your spending analytics</h3>
           </div>
         </div>
@@ -252,7 +298,9 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <MonthlyTrendsChart data={dashboard?.monthlyTrends || []} />
+            <MonthlyTrendsChart
+              data={dashboard?.monthlyTrends || []}
+            />
           </article>
 
           <article className="analytics-panel">
@@ -270,10 +318,17 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      <motion.section className="recent-transactions" variants={itemVariants}>
+      {/* Recent Transactions */}
+      <motion.section
+        className="recent-transactions"
+        variants={itemVariants}
+      >
         <div className="section-heading">
           <div>
-            <span className="dashboard-eyebrow">YOUR ACTIVITY</span>
+            <span className="dashboard-eyebrow">
+              YOUR ACTIVITY
+            </span>
+
             <h3>Recent transactions</h3>
           </div>
 
@@ -301,7 +356,9 @@ const DashboardPage = () => {
                     layout
                   >
                     <div
-                      className={`recent-transaction-icon ${isIncome ? "recent-income" : "recent-expense"
+                      className={`recent-transaction-icon ${isIncome
+                          ? "recent-income"
+                          : "recent-expense"
                         }`}
                     >
                       {isIncome ? (
@@ -313,10 +370,16 @@ const DashboardPage = () => {
 
                     <div className="recent-transaction-details">
                       <strong>{transaction.title}</strong>
+
                       <span>
-                        {transaction.category?.name || "Uncategorized"}
+                        {transaction.category?.name ||
+                          "Uncategorized"}
+
                         {" · "}
-                        {new Date(transaction.date).toLocaleDateString("en-IN", {
+
+                        {new Date(
+                          transaction.date
+                        ).toLocaleDateString("en-IN", {
                           day: "2-digit",
                           month: "short",
                           year: "numeric",
@@ -326,7 +389,9 @@ const DashboardPage = () => {
 
                     <strong
                       className={
-                        isIncome ? "income-text" : "expense-text"
+                        isIncome
+                          ? "income-text"
+                          : "expense-text"
                       }
                     >
                       {isIncome ? "+" : "-"}
@@ -338,8 +403,12 @@ const DashboardPage = () => {
             ) : (
               <div className="recent-empty">
                 <Receipt size={28} />
+
                 <p>No transactions yet.</p>
-                <span>Your recent activity will appear here.</span>
+
+                <span>
+                  Your recent activity will appear here.
+                </span>
               </div>
             )}
           </AnimatePresence>
@@ -349,15 +418,28 @@ const DashboardPage = () => {
   );
 };
 
-const Metric = ({ icon: Icon, label, amount, count, type, description }) => (
+const Metric = ({
+  icon: Icon,
+  label,
+  amount,
+  count,
+  type,
+  description,
+}) => (
   <motion.article whileHover={{ y: -3 }}>
     <div className="metric-label">
       <Icon size={17} />
       {label}
     </div>
-    <strong className={type || ""}>{formatCurrency(amount)}</strong>
+
+    <strong className={type || ""}>
+      {formatCurrency(amount)}
+    </strong>
+
     <span>
-      {count !== undefined ? `${count} transactions` : description}
+      {count !== undefined
+        ? `${count} transactions`
+        : description}
     </span>
   </motion.article>
 );
