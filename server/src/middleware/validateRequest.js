@@ -14,10 +14,10 @@ const validateRequest = (schema) => {
         message: issue.message,
       }));
 
-      return next(new AppError("Request validation failed", 400));
+      return next(new AppError("Request validation failed", 400, errors));
     }
 
-    // Replace request data with validated data
+    // Replace request data with validated data.
     req.body = result.data.body;
     req.validatedQuery = result.data.query;
     req.validatedParams = result.data.params;

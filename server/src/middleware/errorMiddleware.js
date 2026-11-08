@@ -5,12 +5,22 @@ const errorMiddleware = (err, req, res, next) => {
 
   // Zod validation errors
   if (err.name === "ZodError") {
-    error = new AppError("Request validation failed", 400);
+    const errors = err.issues.map((issue) => ({
+      field: issue.path.join("."),
+      message: issue.message,
+    }));
+
+    error = new AppError("Request validation failed", 400, errors);
   }
 
   // Mongoose validation errors
   else if (err.name === "ValidationError") {
-    error = new AppError("Database validation failed", 400);
+    const errors = Object.values(err.errors).map((item) => ({
+      field: item.path,
+      message: item.message,
+    }));
+
+    error = new AppError("Database validation failed", 400, errors);
   }
 
   // Invalid MongoDB ObjectId
@@ -54,7 +64,12 @@ const errorMiddleware = (err, req, res, next) => {
     status: error.status,
   };
 
-  // Stack trace only in development
+  // Include field-level validation errors.
+  if (error.errors) {
+    response.errors = error.errors;
+  }
+
+  // Stack trace only in development.
   if (process.env.NODE_ENV === "development") {
     response.stack = err.stack;
   }
