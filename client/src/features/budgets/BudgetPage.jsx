@@ -187,7 +187,6 @@ const BudgetPage = () => {
         error.response?.data?.message ||
         "Unable to delete this budget. Please try again."
       );
-      setBudgetToDelete(null);
     } finally {
       setIsDeleting(false);
     }
