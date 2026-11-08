@@ -13,8 +13,8 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       required: [true, "Transaction title is required"],
       trim: true,
-      minlength: [2, "Title must be at least 2 characters"],
-      maxlength: [100, "Title cannot exceed 100 characters"],
+      minlength: [2, "Transaction title must be at least 2 characters"],
+      maxlength: [100, "Transaction title cannot exceed 100 characters"],
     },
 
     amount: {
@@ -70,6 +70,12 @@ const transactionSchema = new mongoose.Schema(
       },
       default: "other",
     },
+
+    // Used only for automatically generated recurring transactions.
+    recurrenceKey: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
@@ -97,6 +103,17 @@ transactionSchema.index({
   category: 1,
   date: -1,
 });
+
+// Prevent duplicate recurring transaction occurrences.
+transactionSchema.index(
+  { recurrenceKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      recurrenceKey: { $type: "string" },
+    },
+  },
+);
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 
