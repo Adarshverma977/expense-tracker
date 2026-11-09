@@ -11,6 +11,7 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const recurringTransactionRoutes = require("./routes/recurringTransactionRoutes");
+const financialGoalRoutes = require("./routes/financialGoalRoutes");
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const { apiLimiter } = require("./middleware/rateLimiter");
@@ -59,6 +60,8 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/budgets", budgetRoutes);
 
 app.use("/api/recurring-transactions", recurringTransactionRoutes);
+
+app.use("/api/financial-goals", financialGoalRoutes);
 
 // Handle undefined routes
 app.use(notFoundMiddleware);
