@@ -12,6 +12,7 @@ import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionPage from "./features/transactions/TransactionPage";
 import CategoriesPage from "./features/categories/CategoriesPage";
 import BudgetPage from "./features/budgets/BudgetPage";
+import RecurringTransactionsPage from "./features/recurringTransactions/RecurringTransactionsPage";
 
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -39,6 +40,12 @@ function App() {
           <Route path="/transactions" element={<TransactionPage />} />
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/budgets" element={<BudgetPage />} />
+
+          {/* Recurring transactions */}
+          <Route
+            path="/recurring-transactions"
+            element={<RecurringTransactionsPage />}
+          />
         </Route>
       </Route>
 

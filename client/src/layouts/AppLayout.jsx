@@ -11,6 +11,7 @@ import {
   ReceiptText,
   Tags,
   Wallet,
+  Repeat,
   LogOut,
 } from "lucide-react";
 
@@ -29,6 +30,11 @@ const navigationItems = [
     label: "Transactions",
     path: "/transactions",
     icon: ReceiptText,
+  },
+  {
+    label: "Recurring Transactions",
+    path: "/recurring-transactions",
+    icon: Repeat,
   },
   {
     label: "Categories",
