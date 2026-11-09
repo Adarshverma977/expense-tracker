@@ -15,14 +15,12 @@ const BATCH_SIZE = 50;
 // Generate a unique key for each scheduled occurrence.
 const getIdempotencyKey = (scheduleId, scheduledFor) => {
   const dateKey = scheduledFor.toISOString().slice(0, 10);
-
   return `${scheduleId}:${dateKey}`;
 };
 
 // Exponential retry delay with a maximum of 30 minutes.
 const getRetryDelay = (attempts) => {
   const delay = 60 * 1000 * Math.pow(2, attempts - 1);
-
   return Math.min(delay, 30 * 60 * 1000);
 };
 
@@ -88,7 +86,7 @@ const assertScheduleLockOwnership = async (schedule) => {
   }
 };
 
-// Validate category again at execution time.
+// Validate category at execution time.
 const validateExecutionCategory = async (schedule) => {
   const category = await Category.findOne({
     _id: schedule.category,
@@ -249,7 +247,7 @@ const createOrRecoverTransaction = async (
   }
 };
 
-// Advance schedule only when this worker owns its lock.
+// Advance schedule only when this worker owns its valid lock.
 const advanceSchedule = async (schedule, scheduledFor) => {
   const nextRunDate = calculateNextRunDate(scheduledFor, schedule.frequency);
 
@@ -277,13 +275,14 @@ const advanceSchedule = async (schedule, scheduledFor) => {
   );
 };
 
-// Release schedule lock after another worker owns the execution.
+// Release schedule lock only while the current lease is valid.
 const deferScheduleUntil = async (schedule, lockedUntil) => {
   return RecurringTransaction.findOneAndUpdate(
     {
       _id: schedule._id,
       status: "active",
       lockToken: schedule.lockToken,
+      lockedUntil: { $gt: new Date() },
     },
     {
       $set: {
@@ -317,6 +316,26 @@ const markExecutionFailed = async (execution, error) => {
   );
 };
 
+// Pause schedule after maximum attempts.
+const pauseAfterMaxAttempts = async (schedule) => {
+  return RecurringTransaction.findOneAndUpdate(
+    {
+      _id: schedule._id,
+      status: "active",
+      lockToken: schedule.lockToken,
+      lockedUntil: { $gt: new Date() },
+    },
+    {
+      $set: {
+        status: "paused",
+        pausedAt: new Date(),
+        lockedUntil: null,
+        lockToken: null,
+      },
+    },
+  );
+};
+
 // Process one claimed schedule.
 const processClaimedSchedule = async (schedule) => {
   const scheduledFor = schedule.nextRunDate;
@@ -324,10 +343,10 @@ const processClaimedSchedule = async (schedule) => {
   const idempotencyKey = getIdempotencyKey(schedule._id, scheduledFor);
 
   let execution = null;
+  let heartbeat = null;
   let heartbeatInProgress = false;
   let lockLost = false;
-
-  let heartbeat;
+  let heartbeatError = null;
 
   try {
     await assertScheduleLockOwnership(schedule);
@@ -352,22 +371,13 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
+    // Pause schedule if maximum attempts have been exhausted.
     if (existingExecution.attempts >= MAX_ATTEMPTS) {
-      await RecurringTransaction.findOneAndUpdate(
-        {
-          _id: schedule._id,
-          status: "active",
-          lockToken: schedule.lockToken,
-        },
-        {
-          $set: {
-            status: "paused",
-            pausedAt: new Date(),
-            lockedUntil: null,
-            lockToken: null,
-          },
-        },
-      );
+      const paused = await pauseAfterMaxAttempts(schedule);
+
+      if (!paused) {
+        throw new Error("Could not pause schedule after maximum attempts.");
+      }
 
       return {
         success: false,
@@ -379,8 +389,6 @@ const processClaimedSchedule = async (schedule) => {
     execution = await claimExecution(existingExecution._id);
 
     if (!execution) {
-      // Another worker owns this execution. Avoid repeatedly
-      // claiming the schedule before its execution lease expires.
       if (
         existingExecution.lockedUntil &&
         existingExecution.lockedUntil > new Date()
@@ -416,6 +424,8 @@ const processClaimedSchedule = async (schedule) => {
           );
         }
       } catch (error) {
+        heartbeatError = error;
+
         console.error("Scheduler heartbeat failed:", error.message);
       } finally {
         heartbeatInProgress = false;
@@ -424,19 +434,37 @@ const processClaimedSchedule = async (schedule) => {
 
     heartbeat.unref?.();
 
+    // Verify both locks.
     await assertScheduleLockOwnership(schedule);
     await assertExecutionLockOwnership(execution);
 
-    await validateExecutionCategory(schedule);
+    // IMPORTANT:
+    // Recover an existing transaction before validating category.
+    let transaction = await Transaction.findOne({
+      recurrenceKey: idempotencyKey,
+    });
 
-    await assertScheduleLockOwnership(schedule);
-    await assertExecutionLockOwnership(execution);
+    if (!transaction) {
+      await validateExecutionCategory(schedule);
 
-    const transaction = await createOrRecoverTransaction(
-      schedule,
-      scheduledFor,
-      idempotencyKey,
-    );
+      await assertScheduleLockOwnership(schedule);
+      await assertExecutionLockOwnership(execution);
+
+      transaction = await createOrRecoverTransaction(
+        schedule,
+        scheduledFor,
+        idempotencyKey,
+      );
+    }
+
+    if (lockLost || heartbeatError) {
+      const error = new Error(
+        "Scheduler heartbeat failed or lock ownership was lost.",
+      );
+
+      error.code = "EXECUTION_LOCK_LOST";
+      throw error;
+    }
 
     await assertScheduleLockOwnership(schedule);
     await assertExecutionLockOwnership(execution);
@@ -513,8 +541,8 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
-    // A completed ledger must remain completed. A later worker
-    // will reconcile schedule advancement.
+    // A completed ledger must remain completed.
+    // A later worker will reconcile schedule advancement.
     if (execution && execution.status === "completed") {
       await deferScheduleUntil(schedule, new Date(Date.now() + 5000));
 
@@ -538,17 +566,25 @@ const processClaimedSchedule = async (schedule) => {
 
     const attempts = execution.attempts;
 
-    await markExecutionFailed(execution, error);
+    const failedExecution = await markExecutionFailed(execution, error);
+
+    if (!failedExecution) {
+      return {
+        success: false,
+        lockLost: true,
+      };
+    }
 
     const shouldPause = attempts >= MAX_ATTEMPTS;
 
     const retryAt = new Date(Date.now() + getRetryDelay(attempts));
 
-    await RecurringTransaction.findOneAndUpdate(
+    const scheduleUpdate = await RecurringTransaction.findOneAndUpdate(
       {
         _id: schedule._id,
         status: "active",
         lockToken: schedule.lockToken,
+        lockedUntil: { $gt: new Date() },
       },
       {
         $set: {
@@ -560,17 +596,34 @@ const processClaimedSchedule = async (schedule) => {
       },
     );
 
+    if (!scheduleUpdate) {
+      console.error(
+        "Schedule retry update failed because lock ownership was lost.",
+      );
+
+      return {
+        success: false,
+        lockLost: true,
+      };
+    }
+
     console.error(`Recurring schedule ${schedule._id} failed:`, error.message);
 
     return {
       success: false,
       error: error.message,
       attempts,
+      retryAt: shouldPause ? null : retryAt,
       paused: shouldPause,
     };
   } finally {
     if (heartbeat) {
       clearInterval(heartbeat);
+
+      // Wait for any in-flight heartbeat before leaving.
+      while (heartbeatInProgress) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
     }
   }
 };
