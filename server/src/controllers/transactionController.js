@@ -8,6 +8,11 @@ const {
   deleteTransaction,
 } = require("../services/transactionService");
 
+const {
+  importTransactions,
+  exportTransactions,
+} = require("../services/csvTransactionService");
+
 // POST /api/transactions
 const createTransactionController = asyncHandler(async (req, res) => {
   const transaction = await createTransaction(req.user._id, req.body);
@@ -74,10 +79,47 @@ const deleteTransactionController = asyncHandler(async (req, res) => {
   });
 });
 
+// POST /api/transactions/import
+const importTransactionsController = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "Please upload a CSV file.",
+    });
+  }
+
+  const result = await importTransactions(req.user._id, req.file.buffer);
+
+  res.status(200).json({
+    success: true,
+    message: "CSV import processing completed.",
+    data: result,
+  });
+});
+
+// GET /api/transactions/export
+const exportTransactionsController = asyncHandler(async (req, res) => {
+  const csv = await exportTransactions(req.user._id, req.validatedQuery);
+
+  const filename = `moneta-transactions-${new Date()
+    .toISOString()
+    .slice(0, 10)}.csv`;
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  res.setHeader("Cache-Control", "no-store");
+
+  res.status(200).send(`\uFEFF${csv}`);
+});
+
 module.exports = {
   createTransactionController,
   getTransactionsController,
   getTransactionByIdController,
   updateTransactionController,
   deleteTransactionController,
+  importTransactionsController,
+  exportTransactionsController,
 };

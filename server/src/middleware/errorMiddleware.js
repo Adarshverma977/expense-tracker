@@ -33,6 +33,27 @@ const errorMiddleware = (err, req, res, next) => {
     error = new AppError("Resource already exists", 409);
   }
 
+  // Multer file upload errors
+  else if (err.name === "MulterError") {
+    const multerErrors = {
+      LIMIT_FILE_SIZE: ["CSV file exceeds the maximum allowed size.", 413],
+      LIMIT_FILE_COUNT: ["Only one CSV file can be uploaded at a time.", 400],
+      LIMIT_UNEXPECTED_FILE: [
+        "Unexpected file field. Upload a valid CSV file.",
+        400,
+      ],
+      LIMIT_FIELD_COUNT: ["Too many form fields.", 400],
+      LIMIT_PART_COUNT: ["Too many multipart form parts.", 400],
+    };
+
+    const [message, statusCode] = multerErrors[err.code] || [
+      "CSV file upload failed.",
+      400,
+    ];
+
+    error = new AppError(message, statusCode);
+  }
+
   // Invalid JWT
   else if (err.name === "JsonWebTokenError") {
     error = new AppError("Invalid authentication token", 401);
@@ -64,12 +85,12 @@ const errorMiddleware = (err, req, res, next) => {
     status: error.status,
   };
 
-  // Include field-level validation errors.
+  // Include field-level validation errors
   if (error.errors) {
     response.errors = error.errors;
   }
 
-  // Stack trace only in development.
+  // Stack trace only in development
   if (process.env.NODE_ENV === "development") {
     response.stack = err.stack;
   }
