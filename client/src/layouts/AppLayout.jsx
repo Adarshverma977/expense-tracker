@@ -13,6 +13,7 @@ import {
   Wallet,
   Repeat,
   LogOut,
+  Target,
 } from "lucide-react";
 
 import { useAuth } from "../features/auth/AuthContext";
@@ -46,6 +47,11 @@ const navigationItems = [
     path: "/budgets",
     icon: Wallet,
   },
+  {
+    label: "Financial Goals",
+    path: "/financial-goals",
+    icon: Target,
+  },
 ];
 
 const AppLayout = () => {
@@ -55,7 +61,7 @@ const AppLayout = () => {
   const location = useLocation();
 
   const currentPage = navigationItems.find(
-    (item) => item.path === location.pathname
+    (item) => item.path === location.pathname,
   );
 
   const pageTitle = currentPage?.label || "Your finances";

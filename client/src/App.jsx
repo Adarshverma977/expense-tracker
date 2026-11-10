@@ -13,6 +13,7 @@ import TransactionPage from "./features/transactions/TransactionPage";
 import CategoriesPage from "./features/categories/CategoriesPage";
 import BudgetPage from "./features/budgets/BudgetPage";
 import RecurringTransactionsPage from "./features/recurringTransactions/RecurringTransactionsPage";
+import FinancialGoalsPage from "./features/financialGoals/FinancialGoalsPage";
 
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -29,22 +30,40 @@ function App() {
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route
+          path="/forgot-password"
+          element={<ForgotPasswordPage />}
+        />
+        <Route
+          path="/reset-password"
+          element={<ResetPasswordPage />}
+        />
       </Route>
 
       {/* Protected application routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/transactions" element={<TransactionPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route
+            path="/transactions"
+            element={<TransactionPage />}
+          />
+          <Route
+            path="/categories"
+            element={<CategoriesPage />}
+          />
           <Route path="/budgets" element={<BudgetPage />} />
 
           {/* Recurring transactions */}
           <Route
             path="/recurring-transactions"
             element={<RecurringTransactionsPage />}
+          />
+
+          {/* Financial Goals */}
+          <Route
+            path="/financial-goals"
+            element={<FinancialGoalsPage />}
           />
         </Route>
       </Route>

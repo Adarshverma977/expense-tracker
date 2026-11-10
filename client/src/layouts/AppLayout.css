@@ -1,10 +1,13 @@
+
 .app-layout {
   display: flex;
   min-height: 100vh;
   background: var(--color-background);
 }
 
-/* SIDEBAR */
+/* ========================================
+   SIDEBAR
+======================================== */
 
 .app-sidebar {
   position: fixed;
@@ -92,7 +95,9 @@
   font-weight: 600;
 }
 
-/* SIDEBAR BOTTOM */
+/* ========================================
+   SIDEBAR BOTTOM
+======================================== */
 
 .sidebar-bottom {
   margin-top: auto;
@@ -142,7 +147,9 @@
   letter-spacing: 0.4px;
 }
 
-/* MAIN AREA */
+/* ========================================
+   MAIN AREA
+======================================== */
 
 .app-main {
   flex: 1;
@@ -217,7 +224,9 @@
   color: var(--color-text-secondary);
 }
 
-/* PAGE CONTENT */
+/* ========================================
+   PAGE CONTENT
+======================================== */
 
 .app-content {
   width: 100%;
@@ -226,7 +235,41 @@
   margin: 0 auto;
 }
 
-/* RESPONSIVE */
+/* ========================================
+   LOGOUT BUTTON
+======================================== */
+
+.logout-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.logout-button:hover {
+  background: var(--color-expense-bg);
+  border-color: var(--color-expense);
+  color: var(--color-expense);
+}
+
+/* ========================================
+   MOBILE NAVIGATION
+======================================== */
+
+.mobile-navigation {
+  display: none;
+}
+
+/* ========================================
+   RESPONSIVE - TABLET
+======================================== */
 
 @media (max-width: 900px) {
   .app-sidebar {
@@ -245,6 +288,10 @@
     padding: 28px 24px;
   }
 }
+
+/* ========================================
+   RESPONSIVE - MOBILE
+======================================== */
 
 @media (max-width: 650px) {
   .app-sidebar {
@@ -273,87 +320,78 @@
   }
 
   .app-content {
-    padding: 22px 16px;
+    padding: 22px 16px 110px;
   }
-}
 
-/* ========================================
-   ACTIVE NAVIGATION
-======================================== */
+  .logout-button {
+    width: 36px;
+    height: 36px;
+  }
 
-.sidebar-nav-item.active {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-  font-weight: 600;
-}
+  /* Mobile Bottom Navigation */
 
-/* ========================================
-   MOBILE BOTTOM NAVIGATION
-======================================== */
-
-.mobile-navigation {
-  display: none;
-}
-
-@media (max-width: 650px) {
   .mobile-navigation {
     position: fixed;
     display: block;
     inset: auto 0 0;
     z-index: 150;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-border);
     background: var(--color-surface);
     box-shadow: var(--shadow-md);
   }
 
   .mobile-navigation-items {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-  .mobile-navigation-items .sidebar-nav-item {
-    flex-direction: column;
-    justify-content: center;
-    gap: 5px;
-    padding: 9px 4px;
-    border-radius: 10px;
-    font-size: 10px;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .app-content {
-    padding-bottom: 105px;
+  .mobile-navigation-items::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-navigation-items .sidebar-nav-item {
+    display: flex;
+    flex: 1 0 72px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+    padding: 9px 4px;
+    border-radius: 10px;
+    font-size: 9px;
+    text-align: center;
+  }
+
+  .mobile-navigation-items .sidebar-nav-item svg {
+    flex-shrink: 0;
+  }
+
+  .mobile-navigation-items .sidebar-nav-item span {
+    max-width: 100%;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
   }
 }
 
 /* ========================================
-   LOGOUT BUTTON
+   SMALL MOBILE SCREENS
 ======================================== */
 
-.logout-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-}
+@media (max-width: 360px) {
+  .mobile-navigation {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
 
-.logout-button:hover {
-  background: var(--color-expense-bg);
-  border-color: var(--color-expense);
-  color: var(--color-expense);
-}
-
-@media (max-width: 650px) {
-  .logout-button {
-    width: 36px;
-    height: 36px;
+  .mobile-navigation-items .sidebar-nav-item {
+    flex-basis: 66px;
+    font-size: 8px;
   }
 }
