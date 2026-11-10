@@ -342,7 +342,7 @@ const updateRecurringTransaction = async (userId, scheduleId, updates) => {
       $set: updateFields,
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   );
@@ -376,7 +376,7 @@ const pauseRecurringTransaction = async (userId, scheduleId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     },
   );
 
@@ -455,7 +455,7 @@ const resumeRecurringTransaction = async (userId, scheduleId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     },
   );
 
@@ -488,7 +488,7 @@ const cancelRecurringTransaction = async (userId, scheduleId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     },
   );
 

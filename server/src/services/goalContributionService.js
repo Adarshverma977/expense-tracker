@@ -95,7 +95,7 @@ const createGoalContribution = async (userId, goalId, payload) => {
             },
           },
           {
-            new: true,
+            returnDocument: "after",
             runValidators: true,
             session,
           },

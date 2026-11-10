@@ -149,7 +149,7 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
       {
         $inc: { attempts: 1 },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!updatedRegistration) {
@@ -191,7 +191,7 @@ const verifyRegistrationOTP = async ({ email, otp }) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   ).select("+passwordHash");
@@ -364,7 +364,7 @@ const resetPassword = async ({ token, password }) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   );

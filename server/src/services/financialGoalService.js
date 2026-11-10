@@ -244,7 +244,7 @@ const archiveFinancialGoal = async (userId, goalId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   );

@@ -46,7 +46,7 @@ const claimDueSchedule = async () => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       sort: { nextRunDate: 1, _id: 1 },
     },
   );
@@ -69,7 +69,7 @@ const renewScheduleLock = async (schedule) => {
         lockedUntil: new Date(now.getTime() + LOCK_DURATION_MS),
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   return Boolean(updatedSchedule);
@@ -169,7 +169,7 @@ const claimExecution = async (executionId) => {
         attempts: 1,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -189,7 +189,7 @@ const renewExecutionLock = async (execution) => {
         lockedUntil: new Date(now.getTime() + LOCK_DURATION_MS),
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   return Boolean(updatedExecution);
@@ -271,7 +271,7 @@ const advanceSchedule = async (schedule, scheduledFor) => {
         lockToken: null,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -312,7 +312,7 @@ const markExecutionFailed = async (execution, error) => {
         lockToken: null,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -488,7 +488,7 @@ const processClaimedSchedule = async (schedule) => {
             lockedUntil: null,
           },
         },
-        { new: true },
+        { returnDocument: "after" },
       );
 
     if (!completedExecution) {
