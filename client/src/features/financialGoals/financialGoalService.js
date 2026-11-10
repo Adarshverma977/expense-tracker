@@ -30,6 +30,7 @@ export const createGoalContribution = async (id, contributionData) => {
     `/financial-goals/${id}/contributions`,
     contributionData,
   );
+
   return response.data;
 };
 
@@ -37,5 +38,6 @@ export const getGoalContributions = async (id, params = {}) => {
   const response = await api.get(`/financial-goals/${id}/contributions`, {
     params,
   });
+
   return response.data;
 };

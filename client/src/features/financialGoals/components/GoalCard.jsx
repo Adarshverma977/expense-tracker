@@ -36,10 +36,21 @@ const GoalCard = ({ goal, onClick }) => {
   const isCompleted =
     goal.status === "completed" || goal.isCompleted;
 
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick?.();
+    }
+  };
+
   return (
     <article
       className="financial-goal-card"
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${goal.title}`}
     >
       <div className="goal-card-top">
         <div
@@ -51,18 +62,16 @@ const GoalCard = ({ goal, onClick }) => {
           <Target size={21} />
         </div>
 
-        <div className="goal-card-status">
-          {isCompleted ? (
-            <span className="goal-status completed">
-              <CircleCheck size={13} />
-              Completed
-            </span>
-          ) : (
-            <span className="goal-status active">
-              Active
-            </span>
-          )}
-        </div>
+        {isCompleted ? (
+          <span className="goal-status completed">
+            <CircleCheck size={13} />
+            Completed
+          </span>
+        ) : (
+          <span className="goal-status active">
+            Active
+          </span>
+        )}
       </div>
 
       <div className="goal-card-heading">

@@ -1,6 +1,11 @@
 
-import { useState } from "react";
-import { Target, CalendarDays, IndianRupee } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import {
+  Target,
+  CalendarDays,
+  IndianRupee,
+} from "lucide-react";
 
 const initialValues = {
   title: "",
@@ -20,9 +25,64 @@ const goalColors = [
   "#0891B2",
 ];
 
-const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
+// ========================================
+// FORMAT DATE FOR INPUT
+// ========================================
+
+const getDateInputValue = (date) => {
+  if (!date) return "";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return "";
+
+  const year = parsedDate.getUTCFullYear();
+  const month = String(parsedDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(parsedDate.getUTCDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+// ========================================
+// GOAL FORM
+// ========================================
+
+const GoalForm = ({
+  onSubmit,
+  onCancel,
+  loading = false,
+  initialGoal = null,
+  mode = "create",
+}) => {
   const [formData, setFormData] = useState(initialValues);
   const [errors, setErrors] = useState({});
+
+  const isEditMode = mode === "edit";
+
+  // ========================================
+  // INITIALIZE FORM DATA
+  // ========================================
+
+  useEffect(() => {
+    if (initialGoal && isEditMode) {
+      setFormData({
+        title: initialGoal.title || "",
+        description: initialGoal.description || "",
+        targetAmount: String(initialGoal.targetAmount ?? ""),
+        targetDate: getDateInputValue(initialGoal.targetDate),
+        icon: initialGoal.icon || "target",
+        color: initialGoal.color || "#176B45",
+      });
+    } else {
+      setFormData(initialValues);
+    }
+
+    setErrors({});
+  }, [initialGoal, isEditMode]);
+
+  // ========================================
+  // HANDLE INPUT CHANGE
+  // ========================================
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -38,58 +98,124 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
     }));
   };
 
+  // ========================================
+  // VALIDATE FORM
+  // ========================================
+
   const validateForm = () => {
     const nextErrors = {};
 
-    if (formData.title.trim().length < 2) {
-      nextErrors.title = "Title must contain at least 2 characters.";
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const amount = formData.targetAmount.trim();
+
+    if (title.length < 2) {
+      nextErrors.title =
+        "Title must contain at least 2 characters.";
+    } else if (title.length > 100) {
+      nextErrors.title =
+        "Title cannot exceed 100 characters.";
     }
 
-    if (formData.title.trim().length > 100) {
-      nextErrors.title = "Title cannot exceed 100 characters.";
+    // Correct amount validation
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
+      nextErrors.targetAmount =
+        "Enter a valid amount with up to 2 decimals.";
+    } else if (Number(amount) <= 0) {
+      nextErrors.targetAmount =
+        "Target amount must be greater than zero.";
+    } else if (Number(amount) > 999999999999.99) {
+      nextErrors.targetAmount =
+        "Target amount is too large.";
     }
 
-    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(formData.targetAmount)) {
-      nextErrors.targetAmount = "Enter a valid amount with up to 2 decimals.";
-    } else if (Number(formData.targetAmount) <= 0) {
-      nextErrors.targetAmount = "Target amount must be greater than zero.";
-    } else if (Number(formData.targetAmount) > 999999999999.99) {
-      nextErrors.targetAmount = "Target amount is too large.";
-    }
+    // Prevent target below saved amount
+    if (
+      isEditMode &&
+      initialGoal &&
+      !nextErrors.targetAmount
+    ) {
+      const savedAmount = Number(initialGoal.savedAmount || 0);
 
-    if (!formData.targetDate) {
-      nextErrors.targetDate = "Please select a target date.";
-    } else {
-      const selectedDate = new Date(`${formData.targetDate}T00:00:00`);
-      if (Number.isNaN(selectedDate.getTime())) {
-        nextErrors.targetDate = "Please select a valid date.";
+      if (Number(amount) < savedAmount) {
+        nextErrors.targetAmount =
+          "Target amount cannot be less than the amount already saved.";
       }
     }
 
-    if (formData.description.length > 500) {
-      nextErrors.description = "Description cannot exceed 500 characters.";
+    // Date validation
+    if (!formData.targetDate) {
+      nextErrors.targetDate =
+        "Please select a target date.";
+    } else {
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (!datePattern.test(formData.targetDate)) {
+        nextErrors.targetDate =
+          "Please select a valid date.";
+      } else {
+        const [year, month, day] = formData.targetDate
+          .split("-")
+          .map(Number);
+
+        const selectedDate = new Date(
+          Date.UTC(year, month - 1, day),
+        );
+
+        if (
+          selectedDate.getUTCFullYear() !== year ||
+          selectedDate.getUTCMonth() !== month - 1 ||
+          selectedDate.getUTCDate() !== day
+        ) {
+          nextErrors.targetDate =
+            "Please select a valid date.";
+        }
+      }
+    }
+
+    if (description.length > 500) {
+      nextErrors.description =
+        "Description cannot exceed 500 characters.";
     }
 
     setErrors(nextErrors);
+
     return Object.keys(nextErrors).length === 0;
   };
+
+  // ========================================
+  // HANDLE FORM SUBMIT
+  // ========================================
 
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    if (!validateForm()) return;
+    if (loading || !validateForm()) return;
 
     onSubmit({
-      ...formData,
       title: formData.title.trim(),
       description: formData.description.trim(),
+      targetAmount: formData.targetAmount.trim(),
+      targetDate: formData.targetDate,
+      icon: formData.icon,
+      color: formData.color,
     });
   };
 
+  // ========================================
+  // RENDER
+  // ========================================
+
   return (
     <form className="goal-form" onSubmit={handleSubmit}>
+
+      {/* Goal Name */}
+
       <div className="goal-form-field">
-        <label htmlFor="goal-title">Goal name</label>
+        <label htmlFor="goal-title">
+          Goal name
+        </label>
+
         <input
           id="goal-title"
           name="title"
@@ -98,14 +224,23 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
           placeholder="e.g. Buy a new laptop"
           maxLength={100}
           required
+          disabled={loading}
         />
-        {errors.title && <span className="goal-form-error">{errors.title}</span>}
+
+        {errors.title && (
+          <span className="goal-form-error">
+            {errors.title}
+          </span>
+        )}
       </div>
+
+      {/* Description */}
 
       <div className="goal-form-field">
         <label htmlFor="goal-description">
           Description <span>(Optional)</span>
         </label>
+
         <textarea
           id="goal-description"
           name="description"
@@ -114,18 +249,26 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
           placeholder="What are you saving for?"
           maxLength={500}
           rows={3}
+          disabled={loading}
         />
+
         {errors.description && (
-          <span className="goal-form-error">{errors.description}</span>
+          <span className="goal-form-error">
+            {errors.description}
+          </span>
         )}
       </div>
 
+      {/* Target Amount and Date */}
+
       <div className="goal-form-row">
+
         <div className="goal-form-field">
           <label htmlFor="goal-target-amount">
             <IndianRupee size={14} />
             Target amount
           </label>
+
           <input
             id="goal-target-amount"
             type="number"
@@ -137,9 +280,22 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
             max="999999999999.99"
             step="0.01"
             required
+            disabled={loading}
           />
+
           {errors.targetAmount && (
-            <span className="goal-form-error">{errors.targetAmount}</span>
+            <span className="goal-form-error">
+              {errors.targetAmount}
+            </span>
+          )}
+
+          {isEditMode && initialGoal && (
+            <span className="goal-form-hint">
+              Already saved: ₹
+              {Number(initialGoal.savedAmount || 0).toLocaleString(
+                "en-IN",
+              )}
+            </span>
           )}
         </div>
 
@@ -148,6 +304,7 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
             <CalendarDays size={14} />
             Target date
           </label>
+
           <input
             id="goal-target-date"
             type="date"
@@ -155,23 +312,32 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
             value={formData.targetDate}
             onChange={handleChange}
             required
+            disabled={loading}
           />
+
           {errors.targetDate && (
-            <span className="goal-form-error">{errors.targetDate}</span>
+            <span className="goal-form-error">
+              {errors.targetDate}
+            </span>
           )}
         </div>
+
       </div>
+
+      {/* Goal Icon */}
 
       <div className="goal-form-field">
         <label htmlFor="goal-icon">
           <Target size={14} />
           Goal icon
         </label>
+
         <select
           id="goal-icon"
           name="icon"
           value={formData.icon}
           onChange={handleChange}
+          disabled={loading}
         >
           <option value="target">Target</option>
           <option value="home">Home</option>
@@ -183,8 +349,11 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
         </select>
       </div>
 
+      {/* Goal Color */}
+
       <div className="goal-form-field">
         <label>Choose a color</label>
+
         <div className="goal-color-options">
           {goalColors.map((color) => (
             <button
@@ -193,15 +362,21 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
               className={`goal-color-option ${formData.color === color ? "selected" : ""
                 }`}
               style={{ "--option-color": color }}
-              onClick={() =>
-                setFormData((previous) => ({ ...previous, color }))
-              }
+              onClick={() => {
+                setFormData((previous) => ({
+                  ...previous,
+                  color,
+                }));
+              }}
               aria-label={`Select ${color}`}
               aria-pressed={formData.color === color}
+              disabled={loading}
             />
           ))}
         </div>
       </div>
+
+      {/* Form Actions */}
 
       <div className="goal-form-actions">
         <button
@@ -218,9 +393,16 @@ const GoalForm = ({ onSubmit, onCancel, loading = false }) => {
           className="goal-submit-button"
           disabled={loading}
         >
-          {loading ? "Creating..." : "Create Goal"}
+          {loading
+            ? isEditMode
+              ? "Saving changes..."
+              : "Creating..."
+            : isEditMode
+              ? "Save Changes"
+              : "Create Goal"}
         </button>
       </div>
+
     </form>
   );
 };

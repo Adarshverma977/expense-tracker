@@ -22,6 +22,7 @@ import GoalStats from "./components/GoalStats";
 import GoalCard from "./components/GoalCard";
 import GoalProgress from "./components/GoalProgress";
 import GoalModal from "./components/GoalModal";
+import GoalDetails from "./components/GoalDetails";
 
 import "./FinancialGoalsPage.css";
 
@@ -31,11 +32,19 @@ const FinancialGoalsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Selected Goal Details
+  const [selectedGoalId, setSelectedGoalId] = useState(null);
+
+  // Create Goal Modal
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [creatingGoal, setCreatingGoal] = useState(false);
+
   const [actionError, setActionError] = useState("");
 
-  // Fetch Financial Goals
+  // ========================================
+  // FETCH FINANCIAL GOALS
+  // ========================================
+
   const fetchGoals = useCallback(async () => {
     try {
       setLoading(true);
@@ -62,7 +71,10 @@ const FinancialGoalsPage = () => {
     fetchGoals();
   }, [fetchGoals]);
 
-  // Calculate Dashboard Statistics
+  // ========================================
+  // DASHBOARD STATISTICS
+  // ========================================
+
   const stats = useMemo(() => {
     const activeGoals = goals.filter(
       (goal) => goal.status === "active",
@@ -98,13 +110,15 @@ const FinancialGoalsPage = () => {
     };
   }, [goals]);
 
-  // Open Create Goal Modal
+  // ========================================
+  // CREATE GOAL MODAL
+  // ========================================
+
   const handleOpenGoalModal = () => {
     setActionError("");
     setIsGoalModalOpen(true);
   };
 
-  // Close Create Goal Modal
   const handleCloseGoalModal = () => {
     if (creatingGoal) return;
 
@@ -112,7 +126,10 @@ const FinancialGoalsPage = () => {
     setActionError("");
   };
 
-  // Create Financial Goal
+  // ========================================
+  // CREATE FINANCIAL GOAL
+  // ========================================
+
   const handleCreateGoal = async (goalData) => {
     try {
       setCreatingGoal(true);
@@ -133,10 +150,33 @@ const FinancialGoalsPage = () => {
     }
   };
 
+  // ========================================
+  // OPEN GOAL DETAILS
+  // ========================================
+
+  const handleOpenGoalDetails = (goalId) => {
+    if (!goalId) return;
+
+    setSelectedGoalId(goalId);
+  };
+
+  // ========================================
+  // CLOSE GOAL DETAILS
+  // ========================================
+
+  const handleCloseGoalDetails = () => {
+    setSelectedGoalId(null);
+  };
+
+  // ========================================
+  // RENDER
+  // ========================================
+
   return (
     <div className="financial-goals-page">
 
       {/* Page Heading */}
+
       <div className="financial-goals-heading">
         <div>
           <span className="financial-goals-eyebrow">
@@ -153,6 +193,7 @@ const FinancialGoalsPage = () => {
         <div className="financial-goals-actions">
 
           {/* Refresh */}
+
           <button
             type="button"
             className="goals-refresh-button"
@@ -163,10 +204,12 @@ const FinancialGoalsPage = () => {
               size={16}
               className={loading ? "refresh-spinning" : ""}
             />
+
             Refresh
           </button>
 
           {/* Create Goal */}
+
           <button
             type="button"
             className="create-goal-button"
@@ -180,6 +223,7 @@ const FinancialGoalsPage = () => {
       </div>
 
       {/* Goal Creation API Error */}
+
       {actionError && (
         <div className="goal-action-error" role="alert">
           <AlertCircle size={17} />
@@ -188,9 +232,11 @@ const FinancialGoalsPage = () => {
       )}
 
       {/* Statistics */}
+
       <GoalStats stats={stats} />
 
       {/* Overall Progress */}
+
       {!loading && !error && goals.length > 0 && (
         <section className="overall-goal-progress">
           <div className="overall-progress-heading">
@@ -213,6 +259,7 @@ const FinancialGoalsPage = () => {
       )}
 
       {/* Goals Section */}
+
       <section className="goals-list-section">
 
         <div className="goals-list-heading">
@@ -231,6 +278,7 @@ const FinancialGoalsPage = () => {
         </div>
 
         {/* Loading State */}
+
         {loading ? (
           <div className="goals-loading">
             <div className="goals-loader" />
@@ -240,6 +288,7 @@ const FinancialGoalsPage = () => {
         ) : error ? (
 
           /* Error State */
+
           <div className="goals-error">
             <AlertCircle size={22} />
 
@@ -256,6 +305,7 @@ const FinancialGoalsPage = () => {
         ) : goals.length === 0 ? (
 
           /* Empty State */
+
           <div className="goals-empty-state">
             <div className="goals-empty-icon">
               <Target size={30} />
@@ -281,11 +331,15 @@ const FinancialGoalsPage = () => {
         ) : (
 
           /* Financial Goals Grid */
+
           <div className="financial-goals-grid">
             {goals.map((goal) => (
               <GoalCard
                 key={goal._id}
                 goal={goal}
+                onClick={() =>
+                  handleOpenGoalDetails(goal._id)
+                }
               />
             ))}
           </div>
@@ -294,12 +348,24 @@ const FinancialGoalsPage = () => {
       </section>
 
       {/* Create Goal Modal */}
+
       <GoalModal
         isOpen={isGoalModalOpen}
         onClose={handleCloseGoalModal}
         onSubmit={handleCreateGoal}
         loading={creatingGoal}
+        mode="create"
       />
+
+      {/* Goal Details Modal */}
+
+      {selectedGoalId && (
+        <GoalDetails
+          goalId={selectedGoalId}
+          onClose={handleCloseGoalDetails}
+          onGoalUpdated={fetchGoals}
+        />
+      )}
 
     </div>
   );
