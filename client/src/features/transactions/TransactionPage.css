@@ -1165,3 +1165,100 @@
   width: 0;
   height: 0;
 }
+
+/* =========================================
+   CSV IMPORT / EXPORT HEADER ACTIONS
+========================================= */
+
+.transactions-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.transactions-header-actions > button {
+  min-height: 43px;
+  white-space: nowrap;
+}
+
+.transactions-header-actions .transactions-add-button {
+  width: auto;
+}
+
+.transactions-header-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.transactions-header-actions .transaction-secondary-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+/* CSV loading spinner */
+
+.csv-button-spinner {
+  width: 15px;
+  height: 15px;
+  border-width: 2px;
+  border-top-color: currentColor;
+}
+
+/* =========================================
+   RESPONSIVE HEADER
+========================================= */
+
+@media (max-width: 900px) {
+  .transactions-page-header {
+    align-items: flex-start;
+  }
+
+  .transactions-header-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .transactions-page-header {
+    width: 100%;
+  }
+
+  .transactions-header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .transactions-header-actions > button {
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 0.77rem;
+  }
+
+  .transactions-header-actions .transactions-add-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .transactions-header-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .transactions-header-actions .transactions-add-button {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transactions-header-actions button {
+    transition: none;
+  }
+}

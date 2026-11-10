@@ -24,3 +24,23 @@ export const deleteTransaction = async (id) => {
   const response = await api.delete(`/transactions/${id}`);
   return response.data;
 };
+
+// Import transactions from CSV
+export const importTransactions = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await api.post("/transactions/import", formData);
+
+  return response.data;
+};
+
+// Export transactions as CSV
+export const exportTransactions = async (params = {}) => {
+  const response = await api.get("/transactions/export", {
+    params,
+    responseType: "blob",
+  });
+
+  return response;
+};

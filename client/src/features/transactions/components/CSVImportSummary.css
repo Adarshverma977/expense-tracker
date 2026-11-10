@@ -1,0 +1,231 @@
+
+.csv-summary-modal {
+  max-width: 540px;
+}
+
+.csv-summary-overview {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.csv-summary-status {
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.csv-summary-status.success {
+  background: var(--color-income-bg);
+  color: var(--color-income);
+}
+
+.csv-summary-status.has-errors {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.csv-summary-overview > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.csv-summary-overview strong {
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.csv-summary-overview span {
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+}
+
+.csv-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.csv-summary-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 15px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.csv-summary-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.csv-summary-card-top span {
+  color: var(--color-text-secondary);
+  font-size: 0.77rem;
+  font-weight: 650;
+}
+
+.csv-summary-card strong {
+  color: var(--color-text-primary);
+  font-family: var(--font-heading);
+  font-size: 1.65rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.csv-summary-card small {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.csv-summary-card.success {
+  background: var(--color-income-bg);
+}
+
+.csv-summary-card.success .csv-summary-card-top svg,
+.csv-summary-card.success strong {
+  color: var(--color-income);
+}
+
+.csv-summary-card.warning {
+  background: var(--color-warning-bg);
+}
+
+.csv-summary-card.warning .csv-summary-card-top svg,
+.csv-summary-card.warning strong {
+  color: var(--color-warning);
+}
+
+.csv-summary-card.danger {
+  background: var(--color-expense-bg);
+}
+
+.csv-summary-card.danger .csv-summary-card-top svg,
+.csv-summary-card.danger strong {
+  color: var(--color-expense);
+}
+
+.csv-summary-card.neutral .csv-summary-card-top svg {
+  color: var(--color-text-secondary);
+}
+
+.csv-summary-database-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 15px;
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.csv-summary-database-warning svg {
+  flex-shrink: 0;
+}
+
+.csv-summary-errors {
+  margin-top: 19px;
+}
+
+.csv-summary-errors h3 {
+  margin-bottom: 10px;
+  color: var(--color-text-primary);
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.csv-summary-error-list {
+  max-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.csv-summary-error-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface-secondary);
+}
+
+.csv-summary-error-item > span {
+  flex-shrink: 0;
+  color: var(--color-expense);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.csv-summary-error-item p {
+  color: var(--color-text-secondary);
+  font-size: 0.73rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.csv-summary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.csv-summary-file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.73rem;
+}
+
+.csv-summary-file-info svg {
+  color: var(--color-primary);
+}
+
+@media (max-width: 520px) {
+  .csv-summary-modal {
+    padding: 19px;
+  }
+
+  .csv-summary-card {
+    padding: 12px;
+  }
+
+  .csv-summary-card strong {
+    font-size: 1.4rem;
+  }
+
+  .csv-summary-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .csv-summary-footer button {
+    width: 100%;
+  }
+}

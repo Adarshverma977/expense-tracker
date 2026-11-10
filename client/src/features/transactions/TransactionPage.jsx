@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -9,22 +10,30 @@ import {
   ReceiptText,
   RefreshCw,
   Wallet,
+  Download,
+  FileUp,
 } from "lucide-react";
+
 import { AnimatePresence, motion } from "framer-motion";
 
 import TransactionTable from "./components/TransactionTable";
 import TransactionFilters from "./components/TransactionFilters";
 import TransactionModal from "./components/TransactionModal";
 import DeleteTransactionModal from "./components/DeleteTransactionModal";
+import CSVImportModal from "./components/CSVImportModal";
+import CSVImportSummary from "./components/CSVImportSummary";
 
 import {
   getTransactions,
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  importTransactions,
+  exportTransactions,
 } from "../../services/transactionService";
 
 import { getCategories } from "../../services/categoryService";
+
 import "./TransactionPage.css";
 
 const initialFilters = {
@@ -144,6 +153,29 @@ const formatCurrency = (amount) =>
     maximumFractionDigits: 2,
   }).format(Number(amount || 0));
 
+const getExportErrorMessage = async (error) => {
+  const responseData = error?.response?.data;
+
+  if (responseData instanceof Blob) {
+    try {
+      const text = await responseData.text();
+      const parsed = JSON.parse(text);
+
+      return (
+        parsed?.message ||
+        "Unable to export transactions. Please try again."
+      );
+    } catch {
+      return "Unable to export transactions. Please try again.";
+    }
+  }
+
+  return (
+    responseData?.message ||
+    "Unable to export transactions. Please try again."
+  );
+};
+
 function TransactionPage() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -162,6 +194,13 @@ function TransactionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [importResult, setImportResult] = useState(null);
+  const [csvImportError, setCsvImportError] = useState("");
 
   const [pageError, setPageError] = useState("");
   const [notice, setNotice] = useState("");
@@ -403,6 +442,101 @@ function TransactionPage() {
     setFilters(initialFilters);
   };
 
+  // CSV IMPORT
+  const handleCSVImport = async (file) => {
+    setIsImporting(true);
+    setCsvImportError("");
+    setPageError("");
+
+    try {
+      const response = await importTransactions(file);
+
+      // Axios service returns response.data.
+      // Backend response envelope contains the import result in data.
+      const result = response?.data ?? {};
+
+      setImportResult(response);
+      setIsImportModalOpen(false);
+
+      setFilters((current) => ({
+        ...current,
+        page: 1,
+      }));
+
+      await fetchTransactions(1);
+
+      setNotice(
+        `${Number(result.imported || 0)} transactions imported successfully.`
+      );
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        "Unable to import CSV file. Please check the file and try again.";
+
+      setCsvImportError(message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // CSV EXPORT
+  const handleCSVExport = async () => {
+    setIsExporting(true);
+    setPageError("");
+
+    try {
+      const params = {};
+
+      if (filters.type) {
+        params.type = filters.type;
+      }
+
+      if (filters.category) {
+        params.category = filters.category;
+      }
+
+      if (filters.startDate) {
+        params.startDate = new Date(
+          `${filters.startDate}T00:00:00`
+        ).toISOString();
+      }
+
+      if (filters.endDate) {
+        params.endDate = new Date(
+          `${filters.endDate}T23:59:59.999`
+        ).toISOString();
+      }
+
+      const response = await exportTransactions(params);
+
+      const blob = new Blob([response.data], {
+        type: "text/csv;charset=utf-8;",
+      });
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+      link.download = `moneta-transactions-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 1000);
+
+      setNotice("Transactions exported successfully.");
+    } catch (error) {
+      setPageError(await getExportErrorMessage(error));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   useEffect(() => {
     if (!notice) return undefined;
 
@@ -415,6 +549,7 @@ function TransactionPage() {
 
   const total = Number(pagination.total || 0);
   const page = Number(pagination.page || filters.page);
+
   const totalPages = Math.max(
     1,
     Number(pagination.totalPages || 1)
@@ -443,17 +578,50 @@ function TransactionPage() {
           </p>
         </div>
 
-        <motion.button
-          type="button"
-          className="transaction-primary-button transactions-add-button"
-          onClick={openCreateModal}
-          whileHover={{ y: -2, scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.2 }}
-        >
-          <Plus size={18} />
-          Add transaction
-        </motion.button>
+        <div className="transactions-header-actions">
+          <motion.button
+            type="button"
+            className="transaction-secondary-button"
+            onClick={() => {
+              setCsvImportError("");
+              setIsImportModalOpen(true);
+            }}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <FileUp size={17} />
+            Import CSV
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="transaction-secondary-button"
+            onClick={handleCSVExport}
+            disabled={isExporting}
+            whileHover={!isExporting ? { y: -2 } : {}}
+            whileTap={!isExporting ? { scale: 0.97 } : {}}
+          >
+            {isExporting ? (
+              <span className="transaction-loading-spinner csv-button-spinner" />
+            ) : (
+              <Download size={17} />
+            )}
+
+            {isExporting ? "Exporting..." : "Export CSV"}
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="transaction-primary-button transactions-add-button"
+            onClick={openCreateModal}
+            whileHover={{ y: -2, scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Plus size={18} />
+            Add transaction
+          </motion.button>
+        </div>
       </motion.header>
 
       <AnimatePresence mode="wait">
@@ -708,6 +876,28 @@ function TransactionPage() {
         onConfirm={handleDeleteTransaction}
         isDeleting={isDeleting}
       />
+
+      <CSVImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => {
+          if (!isImporting) {
+            setIsImportModalOpen(false);
+            setCsvImportError("");
+          }
+        }}
+        onImport={handleCSVImport}
+        isImporting={isImporting}
+        apiError={csvImportError}
+      />
+
+      <AnimatePresence>
+        {importResult && (
+          <CSVImportSummary
+            result={importResult}
+            onClose={() => setImportResult(null)}
+          />
+        )}
+      </AnimatePresence>
     </motion.main>
   );
 }
