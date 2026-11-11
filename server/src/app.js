@@ -37,7 +37,12 @@ app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 
 // Global API rate limiting
-app.use("/api", apiLimiter);
+// Enabled only in production.
+// Dedicated authentication rate limiters remain active in all environments.
+
+if (env.NODE_ENV === "production") {
+  app.use("/api", apiLimiter);
+}
 
 // Health check route
 app.get("/api/health", (req, res) => {
