@@ -1,3 +1,4 @@
+
 import "./CSVImportSummary.css";
 import { motion } from "framer-motion";
 import {
@@ -43,7 +44,10 @@ const summaryItems = [
 function CSVImportSummary({ result, onClose }) {
   if (!result) return null;
 
-  const summary = result.data ?? result;
+  // Handle API response and nested backend summary
+  const responseData = result.data ?? result;
+  const summary = responseData.summary ?? responseData;
+  const errors = responseData.errors ?? summary.errors ?? [];
 
   const {
     totalRows = 0,
@@ -52,7 +56,6 @@ function CSVImportSummary({ result, onClose }) {
     duplicates = 0,
     failed = 0,
     databaseFailures = 0,
-    errors = [],
   } = summary;
 
   const hasErrors = failed > 0 || databaseFailures > 0;
@@ -105,7 +108,10 @@ function CSVImportSummary({ result, onClose }) {
         </header>
 
         <div className="csv-summary-overview">
-          <div className={`csv-summary-status ${hasErrors ? "has-errors" : "success"}`}>
+          <div
+            className={`csv-summary-status ${hasErrors ? "has-errors" : "success"
+              }`}
+          >
             {hasErrors ? (
               <AlertCircle size={23} />
             ) : (
@@ -114,13 +120,9 @@ function CSVImportSummary({ result, onClose }) {
           </div>
 
           <div>
-            <strong>
-              {imported} transactions imported
-            </strong>
+            <strong>{imported} transactions imported</strong>
 
-            <span>
-              {totalRows} total rows processed
-            </span>
+            <span>{totalRows} total rows processed</span>
           </div>
         </div>
 
@@ -165,12 +167,12 @@ function CSVImportSummary({ result, onClose }) {
                   className="csv-summary-error-item"
                   key={`${error.row ?? "row"}-${index}`}
                 >
-                  <span>
-                    Row {error.row ?? "—"}
-                  </span>
+                  <span>Row {error.row ?? "—"}</span>
 
                   <p>
-                    {error.message || error.error || "Unable to process this row."}
+                    {error.message ||
+                      error.error ||
+                      "Unable to process this row."}
                   </p>
                 </div>
               ))}

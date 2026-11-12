@@ -1262,3 +1262,55 @@
     transition: none;
   }
 }
+
+/* =========================================
+   TRANSACTION PAGE - FULL WIDTH LAYOUT FIX
+========================================= */
+
+
+.transactions-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 10px 0px 37px;
+  box-sizing: border-box;
+  color: var(--color-text-primary);
+}
+
+
+/* Keep transaction header aligned */
+.transactions-page-header {
+  width: 100%;
+}
+
+/* Summary cards use available width */
+.transactions-summary-grid {
+  width: 100%;
+}
+
+/* Filters use available width */
+.transaction-filters {
+  width: 100%;
+}
+
+/* Transaction table uses available width */
+.transaction-list-panel,
+.transactions-list-panel {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .transactions-page {
+    padding: 24px 28px 36px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .transactions-page {
+    padding: 22px 0px 32px;
+  }
+}
