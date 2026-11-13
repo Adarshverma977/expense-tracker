@@ -22,10 +22,10 @@ import BudgetOverview from "./BudgetOverview";
 
 import "./DashboardPage.css";
 
-const formatCurrency = (amount) =>
+const formatCurrency = (amount, currency = "INR") =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "INR",
+    currency,
     maximumFractionDigits: 2,
   }).format(Number(amount || 0));
 
@@ -252,6 +252,7 @@ const DashboardPage = () => {
             amount={monthly.income}
             count={monthly.incomeCount}
             type="income-text"
+            currency={currency}
           />
 
           <Metric
@@ -260,6 +261,7 @@ const DashboardPage = () => {
             amount={monthly.expenses}
             count={monthly.expenseCount}
             type="expense-text"
+            currency={currency}
           />
 
           <Metric
@@ -267,11 +269,12 @@ const DashboardPage = () => {
             label="Monthly Balance"
             amount={monthly.balance}
             description="Income minus expenses"
+            currency={currency}
           />
         </div>
       </motion.section>
 
-      {/* Budget Overview - New Integration */}
+      {/* Budget Overview */}
       <BudgetOverview />
 
       {/* Financial Analytics */}
@@ -372,30 +375,28 @@ const DashboardPage = () => {
                       <strong>{transaction.title}</strong>
 
                       <span>
-                        {transaction.category?.name ||
-                          "Uncategorized"}
+                        {transaction.category?.name || "Uncategorized"}
 
                         {" · "}
 
-                        {new Date(
-                          transaction.date
-                        ).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {new Date(transaction.date).toLocaleDateString(
+                          "en-IN",
+                          {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          }
+                        )}
                       </span>
                     </div>
 
                     <strong
                       className={
-                        isIncome
-                          ? "income-text"
-                          : "expense-text"
+                        isIncome ? "income-text" : "expense-text"
                       }
                     >
                       {isIncome ? "+" : "-"}
-                      {formatCurrency(transaction.amount)}
+                      {formatCurrency(transaction.amount, currency)}
                     </strong>
                   </motion.div>
                 );
@@ -425,6 +426,7 @@ const Metric = ({
   count,
   type,
   description,
+  currency,
 }) => (
   <motion.article whileHover={{ y: -3 }}>
     <div className="metric-label">
@@ -433,7 +435,7 @@ const Metric = ({
     </div>
 
     <strong className={type || ""}>
-      {formatCurrency(amount)}
+      {formatCurrency(amount, currency)}
     </strong>
 
     <span>
@@ -451,11 +453,7 @@ const AnimatedAmount = ({ amount, currency }) => (
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.45 }}
   >
-    {new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(Number(amount || 0))}
+    {formatCurrency(amount, currency)}
   </motion.span>
 );
 
