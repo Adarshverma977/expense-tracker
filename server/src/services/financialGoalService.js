@@ -8,6 +8,10 @@ const MAX_AMOUNT_MINOR_UNITS = 99999999999999n;
 // Convert Decimal128 amount into integer paise.
 // BigInt avoids floating-point precision errors.
 const toMinorUnits = (value) => {
+  if (value === null || value === undefined) {
+    throw new Error("Invalid monetary value received.");
+  }
+
   const amount = value.toString().trim();
 
   const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
@@ -20,6 +24,10 @@ const toMinorUnits = (value) => {
 
   let digits = `${whole}${fraction}`;
   let scale = fraction.length - Number(exponent);
+
+  if (!Number.isSafeInteger(scale) || Math.abs(scale) > 100) {
+    throw new Error("Unsupported monetary precision.");
+  }
 
   digits = digits.replace(/^0+/, "") || "0";
 
@@ -57,7 +65,13 @@ const fromMinorUnits = (value) => {
 
 // Validate monetary amounts.
 const validateAmount = (amount) => {
-  const minorUnits = toMinorUnits(amount);
+  let minorUnits;
+
+  try {
+    minorUnits = toMinorUnits(amount);
+  } catch {
+    throw new AppError("Invalid goal amount.", 400);
+  }
 
   if (minorUnits <= 0n || minorUnits > MAX_AMOUNT_MINOR_UNITS) {
     throw new AppError("Goal amount is outside the allowed range.", 400);

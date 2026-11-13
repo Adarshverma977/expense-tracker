@@ -9,13 +9,34 @@ const {
   validateScheduleDates,
 } = require("../utils/dateUtils");
 
-// Convert YYYY-MM-DD into a UTC calendar date.
+// Convert YYYY-MM-DD into a strictly validated UTC calendar date.
 const parseDateOnly = (value) => {
-  if (!value) return null;
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
 
-  const [year, month, day] = value.split("-").map(Number);
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new AppError("Invalid schedule date.", 400);
+    }
 
-  return new Date(Date.UTC(year, month - 1, day));
+    return value;
+  }
+
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError("Invalid schedule date. Use YYYY-MM-DD format.", 400);
+  }
+
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== value
+  ) {
+    throw new AppError("Invalid schedule date.", 400);
+  }
+
+  return parsedDate;
 };
 
 // Format Decimal128 amounts for API responses.
@@ -142,10 +163,10 @@ const createRecurringTransaction = async (userId, data) => {
 
   await validateCategory(userId, category, type);
 
-  validateScheduleDates(startDate, endDate);
-
   const parsedStartDate = parseDateOnly(startDate);
   const parsedEndDate = parseDateOnly(endDate);
+
+  validateScheduleDates(parsedStartDate, parsedEndDate);
 
   const nextRunDate = getNextRunDate(parsedStartDate, frequency, parsedEndDate);
 
@@ -435,7 +456,10 @@ const resumeRecurringTransaction = async (userId, scheduleId) => {
     now,
   );
 
-  const shouldComplete = current.endDate && nextRunDate > current.endDate;
+  const shouldComplete =
+    current.endDate !== null &&
+    current.endDate !== undefined &&
+    nextRunDate > current.endDate;
 
   const updatedSchedule = await RecurringTransaction.findOneAndUpdate(
     {

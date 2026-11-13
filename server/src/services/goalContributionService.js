@@ -11,6 +11,8 @@ const {
   formatGoal,
 } = require("./financialGoalService");
 
+const MAX_AMOUNT_MINOR_UNITS = 99999999999999n;
+
 // Convert and validate monetary amounts without floating-point arithmetic.
 const parseContributionAmount = (value) => {
   if (
@@ -25,17 +27,44 @@ const parseContributionAmount = (value) => {
 
   const amount = toMinorUnits(value);
 
-  if (amount <= 0n || amount > 99999999999999n) {
+  if (amount <= 0n || amount > MAX_AMOUNT_MINOR_UNITS) {
     throw new AppError("Contribution amount is out of range.", 400);
   }
 
   return amount;
 };
 
+// Validate optional contribution date strictly.
+const parseContributionDate = (date) => {
+  if (date === undefined || date === null || date === "") {
+    return new Date();
+  }
+
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new AppError("Invalid contribution date.", 400);
+  }
+
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date
+  ) {
+    throw new AppError("Invalid contribution date.", 400);
+  }
+
+  return parsedDate;
+};
+
 const createGoalContribution = async (userId, goalId, payload) => {
+  if (!mongoose.isValidObjectId(goalId)) {
+    throw new AppError("Invalid financial goal ID.", 400);
+  }
+
   const { type, amount: amountInput, note = "", date } = payload;
 
   const amount = parseContributionAmount(amountInput);
+  const contributionDate = parseContributionDate(date);
 
   if (!["deposit", "withdrawal"].includes(type)) {
     throw new AppError("Invalid contribution type.", 400);
@@ -115,7 +144,7 @@ const createGoalContribution = async (userId, goalId, payload) => {
                 fromMinorUnits(amount),
               ),
               note,
-              date: date ? new Date(`${date}T00:00:00.000Z`) : new Date(),
+              date: contributionDate,
             },
           ],
           { session },
@@ -164,6 +193,10 @@ const getGoalContributions = async (
   goalId,
   { page = 1, limit = 20, type } = {},
 ) => {
+  if (!mongoose.isValidObjectId(goalId)) {
+    throw new AppError("Invalid financial goal ID.", 400);
+  }
+
   const goal = await FinancialGoal.exists({
     _id: goalId,
     user: userId,

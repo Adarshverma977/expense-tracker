@@ -1,5 +1,28 @@
 const mongoose = require("mongoose");
 
+const MAX_AMOUNT_IN_PAISE = 99999999999999n;
+
+const toPaise = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const amount = value.toString().trim();
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) {
+    return null;
+  }
+
+  const [wholePart, decimalPart = ""] = amount.split(".");
+  const paise = BigInt(wholePart) * 100n + BigInt(decimalPart.padEnd(2, "0"));
+
+  if (paise > MAX_AMOUNT_IN_PAISE) {
+    return null;
+  }
+
+  return paise;
+};
+
 const goalContributionSchema = new mongoose.Schema(
   {
     // Contribution owner
@@ -29,19 +52,11 @@ const goalContributionSchema = new mongoose.Schema(
       required: [true, "Contribution amount is required"],
       validate: {
         validator: function (value) {
-          if (!value) return false;
-
-          const amount = Number(value.toString());
-
-          return (
-            Number.isFinite(amount) &&
-            amount > 0 &&
-            amount <= 999999999999.99 &&
-            Number.isInteger(amount * 100)
-          );
+          const paise = toPaise(value);
+          return paise !== null && paise > 0n;
         },
         message:
-          "Contribution amount must be positive and have at most 2 decimal places",
+          "Contribution amount must be positive, within the allowed limit, and have at most 2 decimal places",
       },
     },
 

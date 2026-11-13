@@ -22,13 +22,15 @@ const transactionSchema = new mongoose.Schema(
       required: [true, "Transaction amount is required"],
       validate: {
         validator: function (value) {
-          const amount = Number(value.toString());
+          if (!value) return false;
 
-          return (
-            Number.isFinite(amount) &&
-            amount > 0 &&
-            /^\d+(\.\d{1,2})?$/.test(value.toString())
-          );
+          const amount = value.toString();
+
+          if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
+            return false;
+          }
+
+          return /[1-9]/.test(amount);
         },
         message: "Amount must be positive and have at most 2 decimal places",
       },

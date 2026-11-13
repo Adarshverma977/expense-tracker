@@ -10,6 +10,24 @@ const getUtcStartOfDay = (date) => {
   );
 };
 
+// Validate strict YYYY-MM-DD calendar dates.
+const parseDateOnly = (value, message) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError(message, 400);
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== value
+  ) {
+    throw new AppError(message, 400);
+  }
+
+  return date;
+};
+
 const addDays = (date, days) => {
   const result = cloneDate(date);
   result.setUTCDate(result.getUTCDate() + days);
@@ -106,17 +124,22 @@ const calculateNextFutureRunDate = (
 };
 
 const validateScheduleDates = (startDate, endDate) => {
-  const start = new Date(startDate);
+  let start;
+  let end = null;
 
-  if (Number.isNaN(start.getTime())) {
-    throw new AppError("Invalid schedule start date.", 400);
+  if (startDate instanceof Date) {
+    start = startDate;
+    validateDate(start, "Invalid schedule start date.");
+  } else {
+    start = parseDateOnly(startDate, "Invalid schedule start date.");
   }
 
   if (endDate !== null && endDate !== undefined) {
-    const end = new Date(endDate);
-
-    if (Number.isNaN(end.getTime())) {
-      throw new AppError("Invalid schedule end date.", 400);
+    if (endDate instanceof Date) {
+      end = endDate;
+      validateDate(end, "Invalid schedule end date.");
+    } else {
+      end = parseDateOnly(endDate, "Invalid schedule end date.");
     }
 
     if (end < start) {

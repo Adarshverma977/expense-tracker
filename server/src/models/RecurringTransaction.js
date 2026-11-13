@@ -22,13 +22,17 @@ const recurringTransactionSchema = new mongoose.Schema(
       required: [true, "Transaction amount is required"],
       validate: {
         validator: function (value) {
-          const amount = Number(value.toString());
+          if (!value) return false;
 
-          return (
-            Number.isFinite(amount) &&
-            amount > 0 &&
-            /^\d+(\.\d{1,2})?$/.test(value.toString())
-          );
+          const amountString = value.toString();
+
+          // Supports positive decimal amounts with up to 2 decimal places.
+          const validFormat = /^\d+(?:\.\d{1,2})?$/.test(amountString);
+
+          // Rejects zero without converting to a floating-point number.
+          const isPositive = /[1-9]/.test(amountString);
+
+          return validFormat && isPositive;
         },
         message: "Amount must be positive and have at most 2 decimal places",
       },

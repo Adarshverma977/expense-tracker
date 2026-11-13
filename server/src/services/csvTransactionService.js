@@ -265,28 +265,61 @@ const importTransactions = async (userId, fileBuffer) => {
     transactionsToInsert.push(item);
   }
 
-  // Insert individually so one invalid database record
-  // does not prevent other valid records from importing.
+  // Insert transactions in a single batch.
   let importedCount = 0;
   let databaseFailureCount = 0;
 
-  for (const item of transactionsToInsert) {
+  if (transactionsToInsert.length > 0) {
     try {
-      await Transaction.create(item.transaction);
-      importedCount += 1;
-    } catch (error) {
-      databaseFailureCount += 1;
+      const insertedTransactions = await Transaction.insertMany(
+        transactionsToInsert.map((item) => item.transaction),
+        {
+          ordered: false,
+        },
+      );
 
-      rowErrors.push({
-        row: item.rowNumber,
-        message:
-          error.name === "ValidationError"
-            ? Object.values(error.errors)
+      importedCount = insertedTransactions.length;
+    } catch (error) {
+      const writeErrors =
+        error.writeErrors || error.result?.getWriteErrors?.() || [];
+
+      const failedIndexes = new Set();
+
+      for (const writeError of writeErrors) {
+        const index = writeError.index;
+
+        if (
+          Number.isInteger(index) &&
+          index >= 0 &&
+          index < transactionsToInsert.length
+        ) {
+          failedIndexes.add(index);
+
+          const item = transactionsToInsert[index];
+
+          const validationErrors = writeError.err?.errors || writeError.errors;
+
+          const message = validationErrors
+            ? Object.values(validationErrors)
                 .map((validationError) => validationError.message)
                 .join(", ")
-            : "Unable to save this transaction.",
-        type: "database",
-      });
+            : "Unable to save this transaction.";
+
+          rowErrors.push({
+            row: item.rowNumber,
+            message,
+            type: "database",
+          });
+        }
+      }
+
+      databaseFailureCount = failedIndexes.size;
+      importedCount = transactionsToInsert.length - databaseFailureCount;
+
+      // Do not hide unexpected database errors.
+      if (databaseFailureCount === 0 && error.name !== "ValidationError") {
+        throw error;
+      }
     }
   }
 
@@ -301,7 +334,7 @@ const importTransactions = async (userId, fileBuffer) => {
     },
     errors: rowErrors,
   };
-};
+};;
 
 // EXPORT TRANSACTIONS
 

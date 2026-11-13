@@ -21,10 +21,10 @@ const startServer = async () => {
     server = app.listen(env.PORT, () => {
       console.log(`Server running on port ${env.PORT}`);
       console.log(`Environment: ${env.NODE_ENV}`);
-    });
 
-    // Start scheduler only after database connection succeeds.
-    startRecurringTransactionCron();
+      // Start scheduler only after server starts successfully.
+      startRecurringTransactionCron();
+    });
 
     // Handle unexpected server errors.
     server.on("error", (error) => {

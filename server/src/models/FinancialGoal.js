@@ -1,5 +1,30 @@
 const mongoose = require("mongoose");
 
+const MAX_AMOUNT_IN_PAISE = 99999999999999n;
+
+// Converts a decimal amount into paise without floating-point arithmetic.
+const toPaise = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const amount = value.toString().trim();
+
+  // Allow only non-negative amounts with up to 2 decimal places.
+  if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) {
+    return null;
+  }
+
+  const [wholePart, decimalPart = ""] = amount.split(".");
+  const paise = BigInt(wholePart) * 100n + BigInt(decimalPart.padEnd(2, "0"));
+
+  if (paise > MAX_AMOUNT_IN_PAISE) {
+    return null;
+  }
+
+  return paise;
+};
+
 const financialGoalSchema = new mongoose.Schema(
   {
     // Goal owner
@@ -33,19 +58,11 @@ const financialGoalSchema = new mongoose.Schema(
       required: [true, "Target amount is required"],
       validate: {
         validator: function (value) {
-          if (!value) return false;
-
-          const amount = Number(value.toString());
-
-          return (
-            Number.isFinite(amount) &&
-            amount > 0 &&
-            amount <= 999999999999.99 &&
-            Number.isInteger(amount * 100)
-          );
+          const paise = toPaise(value);
+          return paise !== null && paise > 0n;
         },
         message:
-          "Target amount must be positive and have at most 2 decimal places",
+          "Target amount must be positive, within the allowed limit, and have at most 2 decimal places",
       },
     },
 
@@ -55,18 +72,10 @@ const financialGoalSchema = new mongoose.Schema(
       default: () => mongoose.Types.Decimal128.fromString("0.00"),
       validate: {
         validator: function (value) {
-          if (!value) return false;
-
-          const amount = Number(value.toString());
-
-          return (
-            Number.isFinite(amount) &&
-            amount >= 0 &&
-            amount <= 999999999999.99 &&
-            Number.isInteger(amount * 100)
-          );
+          return toPaise(value) !== null;
         },
-        message: "Saved amount must be non-negative and valid",
+        message:
+          "Saved amount must be non-negative, within the allowed limit, and have at most 2 decimal places",
       },
     },
 

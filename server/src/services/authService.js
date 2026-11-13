@@ -262,7 +262,7 @@ const loginUser = async (credentials) => {
     throw new AppError("Invalid email or password", 401);
   }
 
-  const token = generateToken(user._id);
+  const token = generateToken(user._id, user.tokenVersion ?? 0);
 
   const safeUser = {
     id: user._id,
@@ -348,7 +348,7 @@ const resetPassword = async ({ token, password }) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Atomic update prevents reuse of the same reset token.
+  // Atomically reset password and invalidate all existing sessions.
   const user = await User.findOneAndUpdate(
     {
       passwordResetToken: hashedToken,
@@ -361,6 +361,9 @@ const resetPassword = async ({ token, password }) => {
       $unset: {
         passwordResetToken: 1,
         passwordResetExpires: 1,
+      },
+      $inc: {
+        tokenVersion: 1,
       },
     },
     {

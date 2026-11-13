@@ -24,6 +24,7 @@ const recurringTransactionExecutionSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      trim: true,
     },
 
     // Generated financial transaction reference.
@@ -36,7 +37,7 @@ const recurringTransactionExecutionSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["processing", "completed", "failed"],
-      default: "processing",
+      default: "failed",
       required: true,
     },
 
@@ -44,6 +45,11 @@ const recurringTransactionExecutionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
+      max: 5,
+      validate: {
+        validator: Number.isInteger,
+        message: "Execution attempts must be an integer.",
+      },
     },
 
     lastError: {
