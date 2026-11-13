@@ -3,7 +3,31 @@ const mongoose = require("mongoose");
 const Transaction = require("../models/Transaction");
 const AppError = require("../utils/AppError");
 
+const TIME_ZONE = "Asia/Kolkata";
 const ZERO = mongoose.Types.Decimal128.fromString("0.00");
+
+// Get current calendar year and month in the specified timezone.
+const getZonedYearMonth = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(date);
+
+  const year = Number(parts.find((part) => part.type === "year").value);
+  const month = Number(parts.find((part) => part.type === "month").value);
+
+  return { year, month };
+};
+
+// Convert IST calendar midnight into its corresponding UTC Date.
+const getISTMonthBoundary = (year, month) => {
+  const IST_OFFSET_MINUTES = 330;
+
+  return new Date(
+    Date.UTC(year, month - 1, 1) - IST_OFFSET_MINUTES * 60 * 1000,
+  );
+};
 
 const getDashboardStats = async (userId) => {
   if (!mongoose.isValidObjectId(userId)) {
@@ -14,13 +38,18 @@ const getDashboardStats = async (userId) => {
 
   const now = new Date();
 
-  // Current month boundaries
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { year: currentYear, month: currentMonth } = getZonedYearMonth(
+    now,
+    TIME_ZONE,
+  );
 
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  // Current month IST boundaries.
+  const currentMonthStart = getISTMonthBoundary(currentYear, currentMonth);
 
-  // Last 6 months boundaries
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const nextMonthStart = getISTMonthBoundary(currentYear, currentMonth + 1);
+
+  // Last 6 months IST boundary.
+  const sixMonthsAgo = getISTMonthBoundary(currentYear, currentMonth - 5);
 
   const [
     summaryResult,
@@ -192,11 +221,19 @@ const getDashboardStats = async (userId) => {
       {
         $group: {
           _id: {
-            year: {
-              $year: "$date",
-            },
-            month: {
-              $month: "$date",
+            $let: {
+              vars: {
+                dateParts: {
+                  $dateToParts: {
+                    date: "$date",
+                    timezone: TIME_ZONE,
+                  },
+                },
+              },
+              in: {
+                year: "$$dateParts.year",
+                month: "$$dateParts.month",
+              },
             },
           },
 
@@ -234,10 +271,11 @@ const getDashboardStats = async (userId) => {
       .lean(),
   ]);
 
-  // Convert Decimal128 values into JSON-safe strings
-  const formatAmount = (value) => (value ? value.toString() : "0.00");
+  // Convert Decimal128 values into JSON-safe strings.
+  const formatAmount = (value) =>
+    value !== undefined && value !== null ? value.toString() : "0.00";
 
-  // All-time summary defaults
+  // All-time summary defaults.
   const summary = summaryResult[0] || {
     totalIncome: ZERO,
     totalExpenses: ZERO,
@@ -245,7 +283,7 @@ const getDashboardStats = async (userId) => {
     balance: ZERO,
   };
 
-  // Current month defaults
+  // Current month defaults.
   const monthly = monthlyResult[0] || {
     monthlyIncome: ZERO,
     monthlyExpenses: ZERO,
@@ -254,7 +292,7 @@ const getDashboardStats = async (userId) => {
     monthlyBalance: ZERO,
   };
 
-  // Format monthly trend values
+  // Format monthly trend values.
   const trendMap = new Map(
     monthlyTrends.map((item) => [`${item._id.year}-${item._id.month}`, item]),
   );
@@ -262,10 +300,12 @@ const getDashboardStats = async (userId) => {
   const trends = [];
 
   for (let i = 0; i < 6; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    const monthIndex = currentMonth - 5 + i;
 
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
+    const date = new Date(Date.UTC(currentYear, monthIndex - 1, 1));
+
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
 
     const item = trendMap.get(`${year}-${month}`);
 
@@ -277,7 +317,7 @@ const getDashboardStats = async (userId) => {
     });
   }
 
-  // Format recent transactions
+  // Format recent transactions.
   const formattedRecentTransactions = recentTransactions.map((transaction) => ({
     ...transaction,
     amount: formatAmount(transaction.amount),

@@ -11,9 +11,13 @@ const INDIA_UTC_OFFSET_MINUTES = 330;
 /**
  * Convert a decimal amount into integer paise.
  * Uses BigInt to avoid floating-point precision errors.
- * Supports Decimal128 scientific notation as well.
+ * Supports Decimal128 scientific notation.
  */
 const toMinorUnits = (value) => {
+  if (value === null || value === undefined) {
+    throw new Error("Invalid monetary value received from database.");
+  }
+
   const amount = value.toString().trim();
 
   const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
@@ -24,8 +28,14 @@ const toMinorUnits = (value) => {
 
   const [, sign, whole, fraction = "", exponent = "0"] = match;
 
+  const exponentValue = Number(exponent);
+
+  if (!Number.isSafeInteger(exponentValue)) {
+    throw new Error("Invalid monetary exponent.");
+  }
+
   let digits = `${whole}${fraction}`;
-  let scale = fraction.length - Number(exponent);
+  let scale = fraction.length - exponentValue;
 
   // Remove unnecessary leading zeros.
   digits = digits.replace(/^0+/, "") || "0";
@@ -34,11 +44,24 @@ const toMinorUnits = (value) => {
   if (scale > 2) {
     const extraDigits = scale - 2;
 
-    if (!digits.endsWith("0".repeat(extraDigits))) {
-      throw new Error("Monetary value contains unsupported decimal precision.");
+    if (extraDigits > digits.length) {
+      if (digits !== "0") {
+        throw new Error(
+          "Monetary value contains unsupported decimal precision.",
+        );
+      }
+
+      digits = "0";
+    } else {
+      if (!digits.endsWith("0".repeat(extraDigits))) {
+        throw new Error(
+          "Monetary value contains unsupported decimal precision.",
+        );
+      }
+
+      digits = digits.slice(0, -extraDigits) || "0";
     }
 
-    digits = digits.slice(0, -extraDigits) || "0";
     scale = 2;
   }
 
@@ -327,6 +350,10 @@ const getBudgetById = async (userId, budgetId) => {
 const updateBudget = async (userId, budgetId, updates) => {
   if (!mongoose.isValidObjectId(budgetId)) {
     throw new AppError("Invalid budget ID.", 400);
+  }
+
+  if (!updates || typeof updates.amount !== "string") {
+    throw new AppError("A valid budget amount is required.", 400);
   }
 
   const budget = await Budget.findOne({

@@ -78,6 +78,12 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: undefined,
     },
+
+    // Used only for preventing duplicate CSV imports.
+    csvImportKey: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
@@ -113,6 +119,17 @@ transactionSchema.index(
     unique: true,
     partialFilterExpression: {
       recurrenceKey: { $type: "string" },
+    },
+  },
+);
+
+// Prevent duplicate CSV imports for the same user.
+transactionSchema.index(
+  { user: 1, csvImportKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      csvImportKey: { $type: "string" },
     },
   },
 );

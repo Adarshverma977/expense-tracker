@@ -10,7 +10,7 @@ const amountSchema = z
     /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/,
     "Amount must be a valid positive number with at most 2 decimal places.",
   )
-  .refine((value) => Number(value) > 0, "Amount must be greater than zero.");
+  .refine((value) => /[1-9]/.test(value), "Amount must be greater than zero.");
 
 const categoryIdSchema = z
   .string()

@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+
 const { parse } = require("csv-parse/sync");
 const { stringify } = require("csv-stringify/sync");
 
@@ -40,27 +42,98 @@ const createDuplicateKey = (transaction) => {
   ].join("|");
 };
 
+// Stable fingerprint used by the MongoDB unique index.
+const createCsvImportKey = (transaction) => {
+  const fingerprint = createDuplicateKey(transaction);
+
+  return `csv:v1:${crypto
+    .createHash("sha256")
+    .update(fingerprint)
+    .digest("hex")}`;
+};
+
+const parseExportDate = (value, fieldName) => {
+  try {
+    const date = parseCsvDate(value);
+
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      throw new Error("Invalid date");
+    }
+
+    return date;
+  } catch {
+    throw new AppError(`Invalid ${fieldName}.`, 400);
+  }
+};
+
 const buildDateFilter = (startDate, endDate) => {
   const dateFilter = {};
 
   if (startDate) {
-    dateFilter.$gte = new Date(startDate);
+    dateFilter.$gte = parseExportDate(startDate, "start date");
   }
 
   if (endDate) {
+    const parsedEndDate = parseExportDate(endDate, "end date");
     const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(endDate);
 
     if (isDateOnly) {
-      const exclusiveEndDate = new Date(`${endDate}T00:00:00.000Z`);
-      exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
-
-      dateFilter.$lt = exclusiveEndDate;
+      // Date-only values are interpreted as IST midnight.
+      dateFilter.$lt = new Date(parsedEndDate.getTime() + 24 * 60 * 60 * 1000);
     } else {
-      dateFilter.$lte = new Date(endDate);
+      dateFilter.$lte = parsedEndDate;
     }
   }
 
+  if (
+    dateFilter.$gte &&
+    ((dateFilter.$lt && dateFilter.$gte >= dateFilter.$lt) ||
+      (dateFilter.$lte && dateFilter.$gte > dateFilter.$lte))
+  ) {
+    throw new AppError("Start date cannot be after the end date.", 400);
+  }
+
   return dateFilter;
+};
+
+const getBulkWriteErrors = (error) => {
+  if (Array.isArray(error.writeErrors)) {
+    return error.writeErrors;
+  }
+
+  if (Array.isArray(error.result?.writeErrors)) {
+    return error.result.writeErrors;
+  }
+
+  if (typeof error.result?.getWriteErrors === "function") {
+    return error.result.getWriteErrors();
+  }
+
+  return [];
+};
+
+const getWriteErrorCode = (writeError) => {
+  return (
+    writeError.code ?? writeError.err?.code ?? writeError.error?.code ?? null
+  );
+};
+
+const getWriteErrorMessage = (writeError) => {
+  const validationErrors = writeError.err?.errors || writeError.errors;
+
+  if (validationErrors) {
+    return Object.values(validationErrors)
+      .map((item) => item.message)
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return (
+    writeError.err?.errmsg ||
+    writeError.err?.message ||
+    writeError.message ||
+    "Unable to save this transaction."
+  );
 };
 
 // IMPORT TRANSACTIONS
@@ -132,6 +205,7 @@ const importTransactions = async (userId, fileBuffer) => {
 
   let firstDate = null;
   let lastDate = null;
+  let duplicateCount = 0;
 
   for (let index = 0; index < rows.length; index += 1) {
     const rowNumber = index + 2;
@@ -193,7 +267,15 @@ const importTransactions = async (userId, fileBuffer) => {
       const duplicateKey = createDuplicateKey(transaction);
 
       if (seenInFile.has(duplicateKey)) {
-        throw new Error("Duplicate transaction inside CSV file.");
+        duplicateCount += 1;
+
+        rowErrors.push({
+          row: rowNumber,
+          message: "Duplicate transaction inside CSV file.",
+          type: "duplicate",
+        });
+
+        continue;
       }
 
       seenInFile.add(duplicateKey);
@@ -226,8 +308,9 @@ const importTransactions = async (userId, fileBuffer) => {
         totalRows: rows.length,
         imported: 0,
         skipped: rowErrors.length,
-        duplicates: 0,
-        failed: rowErrors.length,
+        duplicates: duplicateCount,
+        failed: rowErrors.length - duplicateCount,
+        databaseFailures: 0,
       },
       errors: rowErrors,
     };
@@ -246,7 +329,6 @@ const importTransactions = async (userId, fileBuffer) => {
   const existingKeys = new Set(existingTransactions.map(createDuplicateKey));
 
   const transactionsToInsert = [];
-  let duplicateCount = 0;
 
   for (const item of validRows) {
     if (existingKeys.has(item.duplicateKey)) {
@@ -262,10 +344,16 @@ const importTransactions = async (userId, fileBuffer) => {
     }
 
     existingKeys.add(item.duplicateKey);
-    transactionsToInsert.push(item);
+
+    transactionsToInsert.push({
+      ...item,
+      transaction: {
+        ...item.transaction,
+        csvImportKey: createCsvImportKey(item.transaction),
+      },
+    });
   }
 
-  // Insert transactions in a single batch.
   let importedCount = 0;
   let databaseFailureCount = 0;
 
@@ -280,8 +368,11 @@ const importTransactions = async (userId, fileBuffer) => {
 
       importedCount = insertedTransactions.length;
     } catch (error) {
-      const writeErrors =
-        error.writeErrors || error.result?.getWriteErrors?.() || [];
+      const writeErrors = getBulkWriteErrors(error);
+
+      if (!writeErrors.length) {
+        throw error;
+      }
 
       const failedIndexes = new Set();
 
@@ -289,37 +380,44 @@ const importTransactions = async (userId, fileBuffer) => {
         const index = writeError.index;
 
         if (
-          Number.isInteger(index) &&
-          index >= 0 &&
-          index < transactionsToInsert.length
+          !Number.isInteger(index) ||
+          index < 0 ||
+          index >= transactionsToInsert.length
         ) {
-          failedIndexes.add(index);
+          // Never guess the result when the failed document is unknown.
+          throw error;
+        }
 
-          const item = transactionsToInsert[index];
+        if (failedIndexes.has(index)) {
+          continue;
+        }
 
-          const validationErrors = writeError.err?.errors || writeError.errors;
+        failedIndexes.add(index);
 
-          const message = validationErrors
-            ? Object.values(validationErrors)
-                .map((validationError) => validationError.message)
-                .join(", ")
-            : "Unable to save this transaction.";
+        const item = transactionsToInsert[index];
+        const errorCode = getWriteErrorCode(writeError);
+
+        if (errorCode === 11000) {
+          // Concurrent import already inserted this fingerprint.
+          duplicateCount += 1;
 
           rowErrors.push({
             row: item.rowNumber,
-            message,
+            message: "Transaction already exists (concurrent import).",
+            type: "duplicate",
+          });
+        } else {
+          databaseFailureCount += 1;
+
+          rowErrors.push({
+            row: item.rowNumber,
+            message: getWriteErrorMessage(writeError),
             type: "database",
           });
         }
       }
 
-      databaseFailureCount = failedIndexes.size;
-      importedCount = transactionsToInsert.length - databaseFailureCount;
-
-      // Do not hide unexpected database errors.
-      if (databaseFailureCount === 0 && error.name !== "ValidationError") {
-        throw error;
-      }
+      importedCount = transactionsToInsert.length - failedIndexes.size;
     }
   }
 
@@ -334,7 +432,7 @@ const importTransactions = async (userId, fileBuffer) => {
     },
     errors: rowErrors,
   };
-};;
+};
 
 // EXPORT TRANSACTIONS
 
@@ -344,6 +442,10 @@ const exportTransactions = async (userId, filters = {}) => {
   const query = { user: userId };
 
   if (type) {
+    if (!["income", "expense"].includes(type)) {
+      throw new AppError("Invalid transaction type.", 400);
+    }
+
     query.type = type;
   }
 

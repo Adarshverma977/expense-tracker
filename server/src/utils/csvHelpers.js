@@ -10,7 +10,8 @@ const CSV_HEADERS = [
   "paymentMethod",
 ];
 
-const MAX_AMOUNT = 999999999999.99;
+const MAX_AMOUNT_PAISE = 99999999999999n;
+const INDIA_UTC_OFFSET_MINUTES = 330;
 
 const normalizeHeader = (header) => {
   return String(header || "")
@@ -20,6 +21,7 @@ const normalizeHeader = (header) => {
     .replace(/[\s_-]+/g, "");
 };
 
+// Parse monetary values without floating-point calculations.
 const parseCsvAmount = (value) => {
   const amount = String(value ?? "").trim();
 
@@ -29,17 +31,30 @@ const parseCsvAmount = (value) => {
     );
   }
 
-  const [wholePart] = amount.split(".");
+  const [wholePart, decimalPart = ""] = amount.split(".");
 
-  if (
-    wholePart.length > 12 ||
-    Number(amount) <= 0 ||
-    Number(amount) > MAX_AMOUNT
-  ) {
+  const paise = BigInt(wholePart + decimalPart.padEnd(2, "0"));
+
+  if (paise <= 0n || paise > MAX_AMOUNT_PAISE) {
     throw new Error("Amount is outside the allowed range.");
   }
 
   return amount;
+};
+
+// Validate a calendar date without JavaScript date normalization.
+const isValidCalendarDate = (year, month, day) => {
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 };
 
 const parseCsvDate = (value) => {
@@ -49,33 +64,84 @@ const parseCsvDate = (value) => {
     throw new Error("Transaction date is required.");
   }
 
-  // Accept YYYY-MM-DD without timezone ambiguity.
+  // Accept YYYY-MM-DD as an India calendar date.
   const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
 
   if (dateOnlyMatch) {
-    const [, year, month, day] = dateOnlyMatch;
+    const [, yearString, monthString, dayString] = dateOnlyMatch;
 
-    const date = new Date(
-      Date.UTC(Number(year), Number(month) - 1, Number(day)),
-    );
+    const year = Number(yearString);
+    const month = Number(monthString);
+    const day = Number(dayString);
 
-    if (
-      date.getUTCFullYear() !== Number(year) ||
-      date.getUTCMonth() !== Number(month) - 1 ||
-      date.getUTCDate() !== Number(day)
-    ) {
+    if (!isValidCalendarDate(year, month, day)) {
       throw new Error("Invalid transaction date.");
     }
 
-    return date;
+    // IST midnight converted to UTC.
+    return new Date(
+      Date.UTC(year, month - 1, day) - INDIA_UTC_OFFSET_MINUTES * 60 * 1000,
+    );
   }
 
-  // Accept ISO datetime with timezone.
+  // Accept ISO datetime with an explicit timezone.
   const isoDateTime =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|([+-])(\d{2}):(\d{2}))$/;
 
-  if (!isoDateTime.test(dateValue)) {
+  const match = isoDateTime.exec(dateValue);
+
+  if (!match) {
     throw new Error("Date must use YYYY-MM-DD or ISO datetime with timezone.");
+  }
+
+  const [
+    ,
+    yearString,
+    monthString,
+    dayString,
+    hourString,
+    minuteString,
+    secondString = "0",
+    ,
+    timezone,
+    offsetSign,
+    offsetHourString,
+    offsetMinuteString,
+  ] = match;
+
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const hour = Number(hourString);
+  const minute = Number(minuteString);
+  const second = Number(secondString);
+
+  if (
+    !isValidCalendarDate(year, month, day) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    throw new Error("Invalid transaction date.");
+  }
+
+  if (timezone !== "Z") {
+    const offsetHour = Number(offsetHourString);
+    const offsetMinute = Number(offsetMinuteString);
+
+    if (offsetHour > 23 || offsetMinute > 59) {
+      throw new Error("Invalid transaction timezone offset.");
+    }
+
+    // RFC 3339 offsets are limited to 14 hours.
+    if (offsetHour > 14 || (offsetHour === 14 && offsetMinute !== 0)) {
+      throw new Error("Invalid transaction timezone offset.");
+    }
+
+    // Reject negative zero offset.
+    if (offsetSign === "-" && offsetHour === 0 && offsetMinute === 0) {
+      throw new Error("Invalid transaction timezone offset.");
+    }
   }
 
   const date = new Date(dateValue);
@@ -102,6 +168,7 @@ const normalizePaymentMethod = (value) => {
   return paymentMethod;
 };
 
+// Prevent spreadsheet formula execution.
 const protectCsvFormula = (value) => {
   if (value === null || value === undefined) {
     return "";
@@ -109,7 +176,7 @@ const protectCsvFormula = (value) => {
 
   const text = String(value);
 
-  // Prevent spreadsheet formula execution.
+  // Detect formula characters after leading whitespace/control characters.
   if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) {
     return `'${text}`;
   }

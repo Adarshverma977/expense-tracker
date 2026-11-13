@@ -31,12 +31,31 @@ const validateCategory = async (userId, categoryId, transactionType) => {
   return category;
 };
 
+// Validate and parse an ISO datetime filter.
+const parseDateFilter = (value, fieldName) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new AppError(`Invalid ${fieldName}.`, 400);
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new AppError(`Invalid ${fieldName}.`, 400);
+  }
+
+  return parsedDate;
+};
+
 const formatTransaction = (transaction) => {
   const data = transaction.toObject ? transaction.toObject() : transaction;
 
   return {
     ...data,
-    amount: data.amount.toString(),
+    amount: data.amount?.toString() ?? null,
   };
 };
 
@@ -82,15 +101,22 @@ const getTransactions = async (userId, filters = {}) => {
     query.category = category;
   }
 
-  if (startDate || endDate) {
+  const parsedStartDate = parseDateFilter(startDate, "startDate");
+  const parsedEndDate = parseDateFilter(endDate, "endDate");
+
+  if (parsedStartDate && parsedEndDate && parsedStartDate > parsedEndDate) {
+    throw new AppError("startDate cannot be later than endDate.", 400);
+  }
+
+  if (parsedStartDate || parsedEndDate) {
     query.date = {};
 
-    if (startDate) {
-      query.date.$gte = new Date(startDate);
+    if (parsedStartDate) {
+      query.date.$gte = parsedStartDate;
     }
 
-    if (endDate) {
-      query.date.$lte = new Date(endDate);
+    if (parsedEndDate) {
+      query.date.$lte = parsedEndDate;
     }
   }
 

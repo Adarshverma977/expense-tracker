@@ -1,5 +1,47 @@
 const mongoose = require("mongoose");
 
+const isValidBudgetAmount = (value) => {
+  if (!value) return false;
+
+  const amountString = value.toString().trim();
+
+  const match = amountString.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/,
+  );
+
+  if (!match) return false;
+
+  const [, sign, whole, fraction = "", exponent = "0"] = match;
+
+  // Budget amounts must be positive.
+  if (sign === "-") return false;
+
+  let digits = `${whole}${fraction}`;
+  let scale = fraction.length - Number(exponent);
+
+  // Reject zero amounts.
+  if (!/[1-9]/.test(digits)) return false;
+
+  // Remove unnecessary leading zeros.
+  digits = digits.replace(/^0+/, "") || "0";
+
+  // Currency supports a maximum of two decimal places.
+  if (scale > 2) {
+    const extraDigits = scale - 2;
+
+    if (extraDigits > digits.length) return false;
+
+    if (!digits.endsWith("0".repeat(extraDigits))) {
+      return false;
+    }
+
+    digits = digits.slice(0, -extraDigits) || "0";
+    scale = 2;
+  }
+
+  return true;
+};
+
 const budgetSchema = new mongoose.Schema(
   {
     // Budget owner
@@ -21,34 +63,7 @@ const budgetSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Decimal128,
       required: [true, "Budget amount is required"],
       validate: {
-        validator: function (value) {
-          if (!value) return false;
-
-          const amountString = value.toString();
-
-          // Decimal128 may use scientific notation.
-          // Normalize it before validating currency precision.
-          const amount = Number(amountString);
-
-          if (!Number.isFinite(amount) || amount <= 0) {
-            return false;
-          }
-
-          // Currency values must have at most 2 decimal places.
-          const normalizedAmount = amountString.toLowerCase();
-
-          const match = normalizedAmount.match(
-            /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/,
-          );
-
-          if (!match) return false;
-
-          const fractionLength = (match[2] || "").length;
-          const exponent = Number(match[3] || 0);
-          const decimalPlaces = fractionLength - exponent;
-
-          return decimalPlaces <= 2;
-        },
+        validator: isValidBudgetAmount,
         message:
           "Budget amount must be positive and have at most 2 decimal places",
       },
