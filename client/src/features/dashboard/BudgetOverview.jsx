@@ -10,19 +10,26 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
 import { getBudgets } from "../budgets/budgetService";
 import "./BudgetOverview.css";
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat("en-IN", {
+const formatCurrency = (amount) => {
+  const numericAmount = Number(amount ?? 0);
+
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+  }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+};
+
+const getNumericValue = (value) => {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
 
 const getBudgetStatus = (budget) => {
-  const percentage = Number(budget.utilizationPercentage || 0);
+  const percentage = getNumericValue(budget.utilizationPercentage);
 
   if (budget.status === "exceeded" || percentage > 100) {
     return "exceeded";
@@ -34,6 +41,47 @@ const getBudgetStatus = (budget) => {
 
   return "safe";
 };
+
+const getProgressWidth = (percentage) => {
+  return `${Math.min(Math.max(getNumericValue(percentage), 0), 100)}%`;
+};
+
+const BudgetLoading = () => (
+  <section className="budget-overview-panel">
+    <div className="budget-overview-heading">
+      <div>
+        <span className="dashboard-eyebrow">BUDGET TRACKER</span>
+        <h3>Monthly budget overview</h3>
+      </div>
+    </div>
+
+    <div className="budget-overview-loading" aria-label="Loading budgets">
+      <div className="budget-loading-line" />
+      <div className="budget-loading-line" />
+      <div className="budget-loading-line" />
+    </div>
+  </section>
+);
+
+const BudgetError = ({ message, onRetry }) => (
+  <section className="budget-overview-panel">
+    <div className="budget-overview-heading">
+      <div>
+        <span className="dashboard-eyebrow">BUDGET TRACKER</span>
+        <h3>Monthly budget overview</h3>
+      </div>
+    </div>
+
+    <div className="budget-overview-message budget-overview-error" role="alert">
+      <AlertTriangle size={22} />
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>
+        <RefreshCw size={14} />
+        Try again
+      </button>
+    </div>
+  </section>
+);
 
 const BudgetOverview = () => {
   const navigate = useNavigate();
@@ -55,16 +103,17 @@ const BudgetOverview = () => {
     let active = true;
 
     const fetchBudgetOverview = async () => {
-      try {
-        setIsLoading(true);
-        setError("");
+      setIsLoading(true);
+      setError("");
 
+      try {
         const currentDate = new Date();
         const month = currentDate.getMonth() + 1;
         const year = currentDate.getFullYear();
 
         const response = await getBudgets(month, year);
         const result = response?.data || {};
+        const resultSummary = result.summary || {};
 
         if (!active) return;
 
@@ -73,20 +122,21 @@ const BudgetOverview = () => {
         );
 
         setSummary({
-          totalBudget: result.summary?.totalBudget ?? "0.00",
-          totalSpent: result.summary?.totalSpent ?? "0.00",
-          totalRemaining: result.summary?.totalRemaining ?? "0.00",
-          utilizationPercentage:
-            result.summary?.utilizationPercentage ?? 0,
-          status: result.summary?.status || "safe",
+          totalBudget: resultSummary.totalBudget ?? "0.00",
+          totalSpent: resultSummary.totalSpent ?? "0.00",
+          totalRemaining: resultSummary.totalRemaining ?? "0.00",
+          utilizationPercentage: getNumericValue(
+            resultSummary.utilizationPercentage
+          ),
+          status: resultSummary.status || "safe",
         });
       } catch (err) {
-        if (active) {
-          setError(
-            err.response?.data?.message ||
-            "Unable to load budget overview."
-          );
-        }
+        if (!active) return;
+
+        setError(
+          err.response?.data?.message ||
+          "Unable to load budget overview."
+        );
       } finally {
         if (active) {
           setIsLoading(false);
@@ -101,56 +151,27 @@ const BudgetOverview = () => {
     };
   }, [refreshKey]);
 
+  const handleRefresh = () => {
+    setRefreshKey((previous) => previous + 1);
+  };
+
+  if (isLoading) {
+    return <BudgetLoading />;
+  }
+
+  if (error) {
+    return <BudgetError message={error} onRetry={handleRefresh} />;
+  }
+
   const overallStatus = getBudgetStatus({
     status: summary.status,
     utilizationPercentage: summary.utilizationPercentage,
   });
 
   const visibleBudgets = budgets.slice(0, 4);
-
-  if (isLoading) {
-    return (
-      <section className="budget-overview-panel">
-        <div className="budget-overview-heading">
-          <div>
-            <span className="dashboard-eyebrow">BUDGET TRACKER</span>
-            <h3>Monthly budget overview</h3>
-          </div>
-        </div>
-
-        <div className="budget-overview-loading">
-          <div className="budget-loading-line" />
-          <div className="budget-loading-line" />
-          <div className="budget-loading-line" />
-        </div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className="budget-overview-panel">
-        <div className="budget-overview-heading">
-          <div>
-            <span className="dashboard-eyebrow">BUDGET TRACKER</span>
-            <h3>Monthly budget overview</h3>
-          </div>
-        </div>
-
-        <div className="budget-overview-message budget-overview-error">
-          <AlertTriangle size={22} />
-          <p>{error}</p>
-          <button
-            type="button"
-            onClick={() => setRefreshKey((prev) => prev + 1)}
-          >
-            <RefreshCw size={14} />
-            Try again
-          </button>
-        </div>
-      </section>
-    );
-  }
+  const utilizationPercentage = getNumericValue(
+    summary.utilizationPercentage
+  );
 
   return (
     <motion.section
@@ -171,7 +192,8 @@ const BudgetOverview = () => {
           className="budget-view-all"
           onClick={() => navigate("/budgets")}
         >
-          Manage budgets <ArrowRight size={15} />
+          Manage budgets
+          <ArrowRight size={15} />
         </button>
       </div>
 
@@ -193,7 +215,8 @@ const BudgetOverview = () => {
             type="button"
             onClick={() => navigate("/budgets")}
           >
-            Create your first budget <ArrowRight size={15} />
+            Create your first budget
+            <ArrowRight size={15} />
           </button>
         </div>
       ) : (
@@ -223,19 +246,16 @@ const BudgetOverview = () => {
             <div className="budget-overall-progress-heading">
               <div>
                 <span>Overall utilization</span>
-                <strong>
-                  {Number(summary.utilizationPercentage || 0).toFixed(1)}%
-                </strong>
+                <strong>{utilizationPercentage.toFixed(1)}%</strong>
               </div>
 
               <span className={`budget-status-label ${overallStatus}`}>
-                {overallStatus === "exceeded" ? (
-                  <AlertTriangle size={13} />
-                ) : overallStatus === "warning" ? (
-                  <AlertTriangle size={13} />
-                ) : (
+                {overallStatus === "safe" ? (
                   <CheckCircle2 size={13} />
+                ) : (
+                  <AlertTriangle size={13} />
                 )}
+
                 {overallStatus === "exceeded"
                   ? "Over budget"
                   : overallStatus === "warning"
@@ -244,15 +264,22 @@ const BudgetOverview = () => {
               </span>
             </div>
 
-            <div className="budget-progress-track">
-              <div
+            <div
+              className="budget-progress-track"
+              role="progressbar"
+              aria-label="Overall budget utilization"
+              aria-valuenow={Math.min(
+                Math.max(utilizationPercentage, 0),
+                100
+              )}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <motion.div
                 className={`budget-progress-fill ${overallStatus}`}
-                style={{
-                  width: `${Math.min(
-                    Math.max(Number(summary.utilizationPercentage || 0), 0),
-                    100
-                  )}%`,
-                }}
+                initial={{ width: 0 }}
+                animate={{ width: getProgressWidth(utilizationPercentage) }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
               />
             </div>
           </div>
@@ -261,15 +288,21 @@ const BudgetOverview = () => {
             <div className="budget-category-heading">
               <h4>Category budgets</h4>
               <span>
-                {budgets.length} {budgets.length === 1 ? "category" : "categories"}
+                {budgets.length}{" "}
+                {budgets.length === 1 ? "category" : "categories"}
               </span>
             </div>
 
             <div className="budget-category-list">
               {visibleBudgets.map((budget) => {
                 const status = getBudgetStatus(budget);
-                const percentage = Number(
-                  budget.utilizationPercentage || 0
+                const percentage = getNumericValue(
+                  budget.utilizationPercentage
+                );
+
+                const safePercentage = Math.min(
+                  Math.max(percentage, 0),
+                  100
                 );
 
                 return (
@@ -305,15 +338,19 @@ const BudgetOverview = () => {
                         </span>
                       </div>
 
-                      <div className="budget-progress-track">
-                        <div
+                      <div
+                        className="budget-progress-track"
+                        role="progressbar"
+                        aria-label={`${budget.category?.name || "Category"} budget utilization`}
+                        aria-valuenow={safePercentage}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <motion.div
                           className={`budget-progress-fill ${status}`}
-                          style={{
-                            width: `${Math.min(
-                              Math.max(percentage, 0),
-                              100
-                            )}%`,
-                          }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${safePercentage}%` }}
+                          transition={{ duration: 0.7, ease: "easeOut" }}
                         />
                       </div>
                     </div>

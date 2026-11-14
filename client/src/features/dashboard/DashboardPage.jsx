@@ -14,26 +14,48 @@ import {
   Activity,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
 import api from "../../services/api";
 import MonthlyTrendsChart from "./MonthlyTrendsChart";
 import CategoryBreakdownChart from "./CategoryBreakdownChart";
 import BudgetOverview from "./BudgetOverview";
-
 import "./DashboardPage.css";
 
-const formatCurrency = (amount, currency = "INR") =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+const formatCurrency = (amount, currency = "INR") => {
+  const numericAmount = Number(amount ?? 0);
+
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+  } catch {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+  }
+};
+
+const formatDate = (value, options) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", options).format(date);
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.09 },
+    transition: {
+      staggerChildren: 0.09,
+      delayChildren: 0.05,
+    },
   },
 };
 
@@ -42,20 +64,21 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: "easeOut" },
+    transition: {
+      duration: 0.45,
+      ease: "easeOut",
+    },
   },
 };
 
 const Skeleton = () => (
-  <div className="dashboard-skeleton">
+  <div className="dashboard-skeleton" aria-label="Loading dashboard">
     <div className="skeleton-heading skeleton" />
-
     <div className="skeleton-cards">
       {[1, 2, 3].map((item) => (
         <div className="skeleton-card skeleton" key={item} />
       ))}
     </div>
-
     <div className="skeleton-content skeleton" />
     <div className="skeleton-content skeleton" />
   </div>
@@ -73,22 +96,29 @@ const DashboardPage = () => {
     let active = true;
 
     const fetchDashboard = async () => {
-      try {
-        setIsLoading(true);
-        setError("");
+      setIsLoading(true);
+      setError("");
 
+      try {
         const response = await api.get("/dashboard");
 
-        if (active) {
-          setDashboard(response.data.data);
+        if (!active) return;
+
+        const dashboardData = response?.data?.data;
+
+        if (!dashboardData || typeof dashboardData !== "object") {
+          throw new Error("Invalid dashboard response received.");
         }
+
+        setDashboard(dashboardData);
       } catch (err) {
-        if (active) {
-          setError(
-            err.response?.data?.message ||
-            "Unable to load dashboard data."
-          );
-        }
+        if (!active) return;
+
+        setError(
+          err.response?.data?.message ||
+          err.message ||
+          "Unable to load dashboard data."
+        );
       } finally {
         if (active) {
           setIsLoading(false);
@@ -103,6 +133,10 @@ const DashboardPage = () => {
     };
   }, [refreshKey]);
 
+  const handleRefresh = () => {
+    setRefreshKey((previous) => previous + 1);
+  };
+
   if (isLoading) {
     return <Skeleton />;
   }
@@ -113,14 +147,12 @@ const DashboardPage = () => {
         className="dashboard-state dashboard-error"
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
+        role="alert"
       >
         <Activity size={32} />
-
         <h3>Something went wrong</h3>
-
         <p>{error}</p>
-
-        <button onClick={() => setRefreshKey((prev) => prev + 1)}>
+        <button type="button" onClick={handleRefresh}>
           <RefreshCw size={16} />
           Try again
         </button>
@@ -131,6 +163,9 @@ const DashboardPage = () => {
   const summary = dashboard?.summary || {};
   const monthly = dashboard?.monthly || {};
   const currency = dashboard?.currency || "INR";
+  const recentTransactions = Array.isArray(dashboard?.recentTransactions)
+    ? dashboard.recentTransactions
+    : [];
 
   const cards = [
     {
@@ -156,13 +191,11 @@ const DashboardPage = () => {
     },
   ];
 
-  const recentTransactions = dashboard?.recentTransactions || [];
-
-  const date = new Intl.DateTimeFormat("en-IN", {
+  const date = formatDate(new Date(), {
     day: "2-digit",
     month: "long",
     year: "numeric",
-  }).format(new Date());
+  });
 
   return (
     <motion.div
@@ -171,7 +204,6 @@ const DashboardPage = () => {
       initial="hidden"
       animate="visible"
     >
-      {/* Welcome Section */}
       <motion.section
         className="dashboard-welcome"
         variants={itemVariants}
@@ -180,20 +212,20 @@ const DashboardPage = () => {
           <span className="dashboard-eyebrow">
             YOUR FINANCIAL OVERVIEW
           </span>
-
           <h2>Welcome back!</h2>
-
           <p>Here is what's happening with your money.</p>
         </div>
 
         <div className="dashboard-date">
           <CalendarDays size={17} />
-          {date}
+          <span>{date}</span>
         </div>
       </motion.section>
 
-      {/* Financial Summary Cards */}
-      <section className="dashboard-summary">
+      <motion.section
+        className="dashboard-summary"
+        variants={itemVariants}
+      >
         {cards.map((card) => {
           const Icon = card.icon;
 
@@ -226,9 +258,8 @@ const DashboardPage = () => {
             </motion.article>
           );
         })}
-      </section>
+      </motion.section>
 
-      {/* Monthly Overview */}
       <motion.section
         className="monthly-overview"
         variants={itemVariants}
@@ -274,10 +305,8 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      {/* Budget Overview */}
       <BudgetOverview />
 
-      {/* Financial Analytics */}
       <motion.section
         className="dashboard-analytics"
         variants={itemVariants}
@@ -287,7 +316,6 @@ const DashboardPage = () => {
             <span className="dashboard-eyebrow">
               FINANCIAL INSIGHTS
             </span>
-
             <h3>Your spending analytics</h3>
           </div>
         </div>
@@ -302,7 +330,9 @@ const DashboardPage = () => {
             </div>
 
             <MonthlyTrendsChart
-              data={dashboard?.monthlyTrends || []}
+              data={Array.isArray(dashboard?.monthlyTrends)
+                ? dashboard.monthlyTrends
+                : []}
             />
           </article>
 
@@ -315,13 +345,14 @@ const DashboardPage = () => {
             </div>
 
             <CategoryBreakdownChart
-              data={dashboard?.categoryBreakdown || []}
+              data={Array.isArray(dashboard?.categoryBreakdown)
+                ? dashboard.categoryBreakdown
+                : []}
             />
           </article>
         </div>
       </motion.section>
 
-      {/* Recent Transactions */}
       <motion.section
         className="recent-transactions"
         variants={itemVariants}
@@ -331,21 +362,22 @@ const DashboardPage = () => {
             <span className="dashboard-eyebrow">
               YOUR ACTIVITY
             </span>
-
             <h3>Recent transactions</h3>
           </div>
 
           <button
+            type="button"
             className="view-all-button"
             onClick={() => navigate("/transactions")}
           >
-            View all <ArrowRight size={15} />
+            View all
+            <ArrowRight size={15} />
           </button>
         </div>
 
         <div className="recent-list">
-          <AnimatePresence>
-            {recentTransactions.length ? (
+          <AnimatePresence mode="popLayout">
+            {recentTransactions.length > 0 ? (
               recentTransactions.map((transaction) => {
                 const isIncome = transaction.type === "income";
 
@@ -355,13 +387,12 @@ const DashboardPage = () => {
                     key={transaction._id}
                     initial={{ opacity: 0, x: -15 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0 }}
+                    exit={{ opacity: 0, x: 15 }}
+                    transition={{ duration: 0.25 }}
                     layout
                   >
                     <div
-                      className={`recent-transaction-icon ${isIncome
-                          ? "recent-income"
-                          : "recent-expense"
+                      className={`recent-transaction-icon ${isIncome ? "recent-income" : "recent-expense"
                         }`}
                     >
                       {isIncome ? (
@@ -372,21 +403,16 @@ const DashboardPage = () => {
                     </div>
 
                     <div className="recent-transaction-details">
-                      <strong>{transaction.title}</strong>
+                      <strong>{transaction.title || "Untitled transaction"}</strong>
 
                       <span>
                         {transaction.category?.name || "Uncategorized"}
-
                         {" · "}
-
-                        {new Date(transaction.date).toLocaleDateString(
-                          "en-IN",
-                          {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          }
-                        )}
+                        {formatDate(transaction.date, {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
                       </span>
                     </div>
 
@@ -404,9 +430,7 @@ const DashboardPage = () => {
             ) : (
               <div className="recent-empty">
                 <Receipt size={28} />
-
                 <p>No transactions yet.</p>
-
                 <span>
                   Your recent activity will appear here.
                 </span>
@@ -439,7 +463,7 @@ const Metric = ({
     </strong>
 
     <span>
-      {count !== undefined
+      {count !== undefined && count !== null
         ? `${count} transactions`
         : description}
     </span>
@@ -448,7 +472,7 @@ const Metric = ({
 
 const AnimatedAmount = ({ amount, currency }) => (
   <motion.span
-    key={String(amount)}
+    key={String(amount ?? 0)}
     initial={{ opacity: 0.4, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.45 }}

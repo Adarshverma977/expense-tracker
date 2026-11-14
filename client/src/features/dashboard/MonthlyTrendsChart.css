@@ -1,46 +1,55 @@
-/* .monthly-trends-chart {
-  width: 100%;
-  height: 320px;
-  min-width: 0;
-}
-
-.chart-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 220px;
-  text-align: center;
-  gap: 8px;
-}
-
-.chart-empty-state p {
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.chart-empty-state span {
-  color: var(--color-text-secondary);
-  font-size: 11px;
-}
-
-@media (max-width: 520px) {
-  .monthly-trends-chart {
-    height: 280px;
-  }
-}
- */
 
 .monthly-trends-chart {
   width: 100%;
   height: 320px;
   min-width: 0;
+  min-height: 0;
+  outline: none;
+}
+
+.chart-empty-state {
+  display: flex;
+  min-height: 220px;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 24px 16px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface-secondary);
+  text-align: center;
+}
+
+.chart-empty-state p {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.chart-empty-state span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 @media (max-width: 600px) {
   .monthly-trends-chart {
     height: 280px;
+  }
+
+  .chart-empty-state {
+    min-height: 200px;
+    padding: 20px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monthly-trends-chart *,
+  .chart-empty-state {
+    animation: none !important;
+    transition: none !important;
   }
 }

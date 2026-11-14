@@ -1,16 +1,16 @@
 
 .dashboard-page {
   --dash-surface: var(--color-surface, #ffffff);
-  --dash-bg: var(--color-background, #f7f8f3);
-  --dash-secondary: var(--color-surface-secondary, #f0f3ed);
-  --dash-text: var(--color-text-primary, #17251e);
+  --dash-bg: var(--color-background, #f6f7f3);
+  --dash-secondary: var(--color-surface-secondary, #eef2ec);
+  --dash-text: var(--color-text-primary, #18231d);
   --dash-muted: var(--color-text-muted, #929d95);
-  --dash-subtext: var(--color-text-secondary, #66746b);
-  --dash-border: var(--color-border, #e5eae3);
-  --dash-primary: var(--color-primary, #176b45);
-  --dash-income: var(--color-income, #16865a);
-  --dash-expense: var(--color-expense, #d65b55);
-  --dash-shadow: var(--shadow-sm, 0 2px 8px rgba(20, 45, 30, 0.04));
+  --dash-subtext: var(--color-text-secondary, #68766d);
+  --dash-border: var(--color-border, #e5eae4);
+  --dash-primary: var(--color-primary, #147d5a);
+  --dash-income: var(--color-income, #159a70);
+  --dash-expense: var(--color-expense, #e16a5b);
+  --dash-shadow: var(--shadow-sm, 0 3px 12px rgba(20, 45, 30, 0.04));
 
   display: flex;
   flex-direction: column;
@@ -22,8 +22,8 @@
 .dashboard-welcome,
 .section-heading {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 20px;
 }
 
@@ -34,10 +34,10 @@
 .dashboard-welcome h2 {
   margin: 9px 0 7px;
   color: var(--dash-text);
-  font-family: var(--font-heading);
-  font-size: clamp(25px, 3vw, 34px);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: clamp(26px, 3vw, 35px);
   font-weight: 800;
-  letter-spacing: -1.3px;
+  letter-spacing: -1.35px;
   line-height: 1.2;
 }
 
@@ -75,6 +75,7 @@
 
 .dashboard-date svg,
 .monthly-badge svg {
+  flex-shrink: 0;
   color: var(--dash-primary);
 }
 
@@ -103,13 +104,14 @@
 .summary-card::before {
   position: absolute;
   z-index: -1;
-  top: -70px;
+  top: -75px;
   right: -65px;
   width: 190px;
   height: 190px;
-  border: 1px solid var(--card-ring, rgba(23, 107, 69, 0.08));
+  border: 1px solid var(--card-ring, rgba(20, 125, 90, 0.09));
   border-radius: 50%;
   content: "";
+  pointer-events: none;
 }
 
 .summary-card::after {
@@ -122,12 +124,13 @@
   border-radius: 50%;
   background: var(--card-accent, rgba(54, 168, 117, 0.07));
   content: "";
+  pointer-events: none;
 }
 
 .summary-card:hover {
   transform: translateY(-4px);
   border-color: var(--dash-primary);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(20, 45, 30, 0.09));
 }
 
 .summary-card-top {
@@ -150,6 +153,16 @@
   border-radius: 14px;
   background: var(--dash-secondary);
   color: var(--dash-primary);
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.summary-card:hover .summary-icon {
+  transform: rotate(-5deg) scale(1.04);
+  background: var(--color-primary-light);
+  color: var(--dash-primary);
 }
 
 .summary-icon svg {
@@ -160,7 +173,7 @@
 .summary-card h3 {
   margin: 22px 0 8px;
   color: var(--dash-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
   font-size: clamp(21px, 2.2vw, 29px);
   font-weight: 800;
   letter-spacing: -1px;
@@ -177,18 +190,18 @@
 }
 
 .balance-card {
-  --card-accent: rgba(54, 168, 117, 0.10);
+  --card-accent: rgba(54, 168, 117, 0.1);
   --card-ring: rgba(54, 168, 117, 0.12);
 }
 
 .income-card {
   --card-accent: rgba(54, 168, 117, 0.08);
-  --card-ring: rgba(54, 168, 117, 0.10);
+  --card-ring: rgba(54, 168, 117, 0.1);
 }
 
 .expense-card {
-  --card-accent: rgba(228, 124, 112, 0.09);
-  --card-ring: rgba(228, 124, 112, 0.12);
+  --card-accent: rgba(225, 106, 91, 0.09);
+  --card-ring: rgba(225, 106, 91, 0.12);
 }
 
 .monthly-overview,
@@ -209,7 +222,7 @@
 .section-heading h3 {
   margin: 7px 0 0;
   color: var(--dash-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.55px;
@@ -232,12 +245,14 @@
   background: var(--dash-bg);
   transition:
     border-color 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .monthly-metrics article:hover {
   transform: translateY(-2px);
   border-color: var(--dash-primary);
+  background: var(--dash-surface);
 }
 
 .metric-label {
@@ -250,12 +265,13 @@
 }
 
 .metric-label svg {
+  flex-shrink: 0;
   color: var(--dash-primary);
 }
 
 .monthly-metrics article strong {
   color: var(--dash-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
   font-size: clamp(18px, 2vw, 23px);
   font-weight: 800;
   letter-spacing: -0.6px;
@@ -294,7 +310,7 @@
 .analytics-panel-heading h4 {
   margin: 0 0 7px;
   color: var(--dash-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.3px;
@@ -338,8 +354,10 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
   padding: 16px 0;
   border-bottom: 1px solid var(--dash-border);
+  transition: background-color 0.2s ease;
 }
 
 .recent-transaction-item:last-child {
@@ -368,8 +386,8 @@
 }
 
 .recent-expense {
-  border-color: rgba(228, 124, 112, 0.12);
-  background: var(--color-expense-bg, rgba(228, 124, 112, 0.12));
+  border-color: rgba(225, 106, 91, 0.12);
+  background: var(--color-expense-bg, rgba(225, 106, 91, 0.12));
   color: var(--dash-expense);
 }
 
@@ -391,11 +409,15 @@
 }
 
 .recent-transaction-details span {
+  overflow: hidden;
   color: var(--dash-muted);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recent-transaction-item > strong {
+  flex-shrink: 0;
   color: var(--dash-text);
   font-size: 13px;
   font-weight: 750;
@@ -413,6 +435,10 @@
   text-align: center;
 }
 
+.recent-empty > svg {
+  color: var(--dash-primary);
+}
+
 .recent-empty p {
   margin: 0;
   color: var(--dash-text);
@@ -421,6 +447,7 @@
 }
 
 .recent-empty span {
+  color: var(--dash-muted);
   font-size: 12px;
 }
 
@@ -436,9 +463,10 @@
   color: var(--dash-primary);
   font-size: 12px;
   font-weight: 750;
+  cursor: pointer;
   transition:
     transform 0.2s ease,
-    background 0.2s ease,
+    background-color 0.2s ease,
     border-color 0.2s ease;
 }
 
@@ -446,6 +474,12 @@
   transform: translateX(3px);
   border-color: var(--dash-primary);
   background: var(--dash-secondary);
+}
+
+.view-all-button:focus-visible,
+.dashboard-error button:focus-visible {
+  outline: 3px solid var(--dash-primary);
+  outline-offset: 3px;
 }
 
 .dashboard-state {
@@ -459,10 +493,14 @@
   text-align: center;
 }
 
+.dashboard-error > svg {
+  color: var(--dash-expense);
+}
+
 .dashboard-error h3 {
   margin: 0;
   color: var(--dash-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
   font-size: 20px;
 }
 
@@ -485,11 +523,15 @@
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
-  transition: opacity 0.2s ease;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .dashboard-error button:hover {
-  opacity: 0.88;
+  transform: translateY(-2px);
+  opacity: 0.9;
 }
 
 .dashboard-skeleton {
@@ -512,7 +554,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.2),
     transparent
   );
   content: "";
