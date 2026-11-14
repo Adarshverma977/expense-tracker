@@ -12,6 +12,10 @@ import {
   RefreshCw,
   ArrowRight,
   Activity,
+  ShoppingBag,
+  Lightbulb,
+  PiggyBank,
+  Layers3,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
@@ -46,6 +50,11 @@ const formatDate = (value, options) => {
   }
 
   return new Intl.DateTimeFormat("en-IN", options).format(date);
+};
+
+const getNumericValue = (value) => {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
 };
 
 const containerVariants = {
@@ -163,6 +172,17 @@ const DashboardPage = () => {
   const summary = dashboard?.summary || {};
   const monthly = dashboard?.monthly || {};
   const currency = dashboard?.currency || "INR";
+
+  const monthlyTrends = Array.isArray(dashboard?.monthlyTrends)
+    ? dashboard.monthlyTrends
+    : [];
+
+  const categoryBreakdown = Array.isArray(dashboard?.categoryBreakdown)
+    ? dashboard.categoryBreakdown.filter(
+      (category) => category && typeof category === "object"
+    )
+    : [];
+
   const recentTransactions = Array.isArray(dashboard?.recentTransactions)
     ? dashboard.recentTransactions
     : [];
@@ -204,10 +224,7 @@ const DashboardPage = () => {
       initial="hidden"
       animate="visible"
     >
-      <motion.section
-        className="dashboard-welcome"
-        variants={itemVariants}
-      >
+      <motion.section className="dashboard-welcome" variants={itemVariants}>
         <div>
           <span className="dashboard-eyebrow">
             YOUR FINANCIAL OVERVIEW
@@ -222,10 +239,7 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      <motion.section
-        className="dashboard-summary"
-        variants={itemVariants}
-      >
+      <motion.section className="dashboard-summary" variants={itemVariants}>
         {cards.map((card) => {
           const Icon = card.icon;
 
@@ -241,7 +255,6 @@ const DashboardPage = () => {
             >
               <div className="summary-card-top">
                 <span>{card.title}</span>
-
                 <div className="summary-icon">
                   <Icon size={21} />
                 </div>
@@ -260,10 +273,7 @@ const DashboardPage = () => {
         })}
       </motion.section>
 
-      <motion.section
-        className="monthly-overview"
-        variants={itemVariants}
-      >
+      <motion.section className="monthly-overview" variants={itemVariants}>
         <div className="section-heading">
           <div>
             <span className="dashboard-eyebrow">THIS MONTH</span>
@@ -321,20 +331,24 @@ const DashboardPage = () => {
         </div>
 
         <div className="analytics-grid">
-          <article className="analytics-panel">
-            <div className="analytics-panel-heading">
-              <div>
-                <h4>Monthly trends</h4>
-                <p>Income vs expenses over the last 6 months</p>
+          <div className="analytics-main-column">
+            <article className="analytics-panel">
+              <div className="analytics-panel-heading">
+                <div>
+                  <h4>Monthly trends</h4>
+                  <p>Income vs expenses over the last 6 months</p>
+                </div>
               </div>
-            </div>
 
-            <MonthlyTrendsChart
-              data={Array.isArray(dashboard?.monthlyTrends)
-                ? dashboard.monthlyTrends
-                : []}
+              <MonthlyTrendsChart data={monthlyTrends} />
+            </article>
+
+            <SpendingInsights
+              data={categoryBreakdown}
+              monthly={monthly}
+              currency={currency}
             />
-          </article>
+          </div>
 
           <article className="analytics-panel">
             <div className="analytics-panel-heading">
@@ -344,24 +358,15 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <CategoryBreakdownChart
-              data={Array.isArray(dashboard?.categoryBreakdown)
-                ? dashboard.categoryBreakdown
-                : []}
-            />
+            <CategoryBreakdownChart data={categoryBreakdown} />
           </article>
         </div>
       </motion.section>
 
-      <motion.section
-        className="recent-transactions"
-        variants={itemVariants}
-      >
+      <motion.section className="recent-transactions" variants={itemVariants}>
         <div className="section-heading">
           <div>
-            <span className="dashboard-eyebrow">
-              YOUR ACTIVITY
-            </span>
+            <span className="dashboard-eyebrow">YOUR ACTIVITY</span>
             <h3>Recent transactions</h3>
           </div>
 
@@ -403,7 +408,9 @@ const DashboardPage = () => {
                     </div>
 
                     <div className="recent-transaction-details">
-                      <strong>{transaction.title || "Untitled transaction"}</strong>
+                      <strong>
+                        {transaction.title || "Untitled transaction"}
+                      </strong>
 
                       <span>
                         {transaction.category?.name || "Uncategorized"}
@@ -431,15 +438,159 @@ const DashboardPage = () => {
               <div className="recent-empty">
                 <Receipt size={28} />
                 <p>No transactions yet.</p>
-                <span>
-                  Your recent activity will appear here.
-                </span>
+                <span>Your recent activity will appear here.</span>
               </div>
             )}
           </AnimatePresence>
         </div>
       </motion.section>
     </motion.div>
+  );
+};
+
+const SpendingInsights = ({ data, monthly, currency }) => {
+  const categories = data
+    .map((category) => ({
+      name: category.name || "Uncategorized",
+      amount: getNumericValue(category.totalAmount),
+      transactionCount: getNumericValue(category.transactionCount),
+    }))
+    .filter((category) => category.amount > 0);
+
+  const totalCategoryExpenses = categories.reduce(
+    (total, category) => total + category.amount,
+    0
+  );
+
+  const monthlyExpenses = getNumericValue(monthly.expenses);
+  const totalExpenses = totalCategoryExpenses || monthlyExpenses;
+
+  const totalTransactions = categories.reduce(
+    (total, category) => total + category.transactionCount,
+    0
+  );
+
+  const topCategory = [...categories].sort(
+    (a, b) => b.amount - a.amount
+  )[0];
+
+  const topCategoryPercentage =
+    topCategory && totalExpenses > 0
+      ? (topCategory.amount / totalExpenses) * 100
+      : 0;
+
+  const averageTransaction =
+    totalTransactions > 0
+      ? totalCategoryExpenses / totalTransactions
+      : 0;
+
+  const insights = [
+    {
+      label: "Top spending category",
+      value: topCategory?.name || "No data yet",
+      amount: topCategory
+        ? formatCurrency(topCategory.amount, currency)
+        : "—",
+      detail: topCategory
+        ? `${topCategoryPercentage.toFixed(1)}% of categorized expenses`
+        : "Your category insights will appear here",
+      icon: ShoppingBag,
+      className: "insight-category",
+    },
+    {
+      label: "Total transactions",
+      value: totalTransactions.toLocaleString("en-IN"),
+      amount: "This month",
+      detail: `${categories.length} ${categories.length === 1 ? "category" : "categories"
+        } with expenses`,
+      icon: Receipt,
+      className: "insight-transactions",
+    },
+    {
+      label: "Average transaction",
+      value:
+        totalTransactions > 0
+          ? formatCurrency(averageTransaction, currency)
+          : "—",
+      amount: "Per transaction",
+      detail:
+        totalTransactions > 0
+          ? "Based on categorized expenses"
+          : "Not enough transaction data",
+      icon: PiggyBank,
+      className: "insight-average",
+    },
+  ];
+
+  const observation = topCategory
+    ? `${topCategory.name} is your highest spending category, accounting for ${topCategoryPercentage.toFixed(
+      1
+    )}% of your categorized expenses this month.`
+    : "Add some expenses to start discovering your spending patterns.";
+
+  return (
+    <motion.section
+      className="spending-insights"
+      initial={{ opacity: 0, y: 15 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="spending-insights-heading">
+        <div>
+          <span className="dashboard-eyebrow">SMART SUMMARY</span>
+          <h4>Spending insights</h4>
+        </div>
+
+        <div className="spending-insights-icon">
+          <Layers3 size={19} />
+        </div>
+      </div>
+
+      <div className="spending-insights-grid">
+        {insights.map((insight) => {
+          const Icon = insight.icon;
+
+          return (
+            <article
+              className={`spending-insight-card ${insight.className}`}
+              key={insight.label}
+            >
+              <div className="spending-insight-icon">
+                <Icon size={17} />
+              </div>
+
+              <span className="spending-insight-label">
+                {insight.label}
+              </span>
+
+              <strong className="spending-insight-value">
+                {insight.value}
+              </strong>
+
+              <span className="spending-insight-amount">
+                {insight.amount}
+              </span>
+
+              <span className="spending-insight-detail">
+                {insight.detail}
+              </span>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="spending-observation">
+        <div className="spending-observation-icon">
+          <Lightbulb size={19} />
+        </div>
+
+        <div>
+          <strong>Monthly observation</strong>
+          <p>{observation}</p>
+        </div>
+      </div>
+    </motion.section>
   );
 };
 
