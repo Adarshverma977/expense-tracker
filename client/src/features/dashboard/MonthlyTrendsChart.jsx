@@ -12,36 +12,51 @@ import {
 import { useTheme } from "../../app/ThemeContext";
 import "./MonthlyTrendsChart.css";
 
-const formatCurrency = (value) => {
-  const amount = Number(value ?? 0);
+const getNumericValue = (value) => {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return 0;
+  }
 
+  const amount = Number(value);
+
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const formatCurrency = (value) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(Number.isFinite(amount) ? amount : 0);
+  }).format(getNumericValue(value));
 };
 
 const formatAxisCurrency = (value) => {
-  const amount = Number(value ?? 0);
+  const amount = getNumericValue(value);
+  const absoluteAmount = Math.abs(amount);
 
-  if (!Number.isFinite(amount)) {
-    return "₹0";
+  if (absoluteAmount >= 10000000) {
+    return `${amount < 0 ? "-" : ""}₹${(
+      absoluteAmount / 10000000
+    ).toFixed(1)}Cr`;
   }
 
-  if (Math.abs(amount) >= 10000000) {
-    return `₹${(amount / 10000000).toFixed(1)}Cr`;
+  if (absoluteAmount >= 100000) {
+    return `${amount < 0 ? "-" : ""}₹${(
+      absoluteAmount / 100000
+    ).toFixed(1)}L`;
   }
 
-  if (Math.abs(amount) >= 100000) {
-    return `₹${(amount / 100000).toFixed(1)}L`;
+  if (absoluteAmount >= 1000) {
+    return `${amount < 0 ? "-" : ""}₹${(
+      absoluteAmount / 1000
+    ).toFixed(1)}k`;
   }
 
-  if (Math.abs(amount) >= 1000) {
-    return `₹${(amount / 1000).toFixed(0)}k`;
-  }
-
-  return `₹${amount}`;
+  return `₹${amount.toLocaleString("en-IN")}`;
 };
 
 const formatMonth = (year, month) => {
@@ -51,13 +66,15 @@ const formatMonth = (year, month) => {
   if (
     !Number.isInteger(numericYear) ||
     !Number.isInteger(numericMonth) ||
+    numericYear < 1000 ||
+    numericYear > 9999 ||
     numericMonth < 1 ||
     numericMonth > 12
   ) {
     return "Unknown";
   }
 
-  return new Date(numericYear, numericMonth - 1).toLocaleDateString(
+  return new Date(numericYear, numericMonth - 1, 1).toLocaleDateString(
     "en-IN",
     {
       month: "short",
@@ -66,20 +83,54 @@ const formatMonth = (year, month) => {
   );
 };
 
+const getChartData = (data) => {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      month: formatMonth(item.year, item.month),
+      income: Math.max(getNumericValue(item.income), 0),
+      expenses: Math.max(getNumericValue(item.expenses), 0),
+    }));
+};
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !Array.isArray(payload) || payload.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="monthly-chart-tooltip">
+      <strong>{label}</strong>
+
+      {payload.map((entry) => (
+        <div
+          className="monthly-chart-tooltip-row"
+          key={entry.dataKey}
+        >
+          <span
+            className="monthly-chart-tooltip-indicator"
+            style={{ backgroundColor: entry.color }}
+          />
+
+          <span>
+            {entry.dataKey === "income" ? "Income" : "Expenses"}
+          </span>
+
+          <strong>{formatCurrency(entry.value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const MonthlyTrendsChart = ({ data = [] }) => {
   const { isDark } = useTheme();
 
-  const safeData = Array.isArray(data) ? data : [];
-
-  const chartData = safeData.map((item) => ({
-    month: formatMonth(item.year, item.month),
-    income: Number.isFinite(Number(item.income))
-      ? Number(item.income)
-      : 0,
-    expenses: Number.isFinite(Number(item.expenses))
-      ? Number(item.expenses)
-      : 0,
-  }));
+  const chartData = getChartData(data);
 
   const hasData = chartData.some(
     (item) => item.income > 0 || item.expenses > 0
@@ -115,12 +166,17 @@ const MonthlyTrendsChart = ({ data = [] }) => {
     <div
       className="monthly-trends-chart"
       role="img"
-      aria-label="Bar chart comparing monthly income and expenses"
+      aria-label={`Monthly income and expense comparison across ${chartData.length} months`}
     >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={chartData}
-          margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+          margin={{
+            top: 12,
+            right: 8,
+            left: 0,
+            bottom: 0,
+          }}
           barGap={8}
           barCategoryGap="25%"
         >
@@ -152,7 +208,7 @@ const MonthlyTrendsChart = ({ data = [] }) => {
             }}
             axisLine={false}
             tickLine={false}
-            width={58}
+            width={62}
             tickMargin={8}
           />
 
@@ -194,6 +250,7 @@ const MonthlyTrendsChart = ({ data = [] }) => {
             maxBarSize={32}
             animationDuration={900}
             animationEasing="ease-out"
+            isAnimationActive
           />
 
           <Bar
@@ -204,6 +261,7 @@ const MonthlyTrendsChart = ({ data = [] }) => {
             maxBarSize={32}
             animationDuration={1100}
             animationEasing="ease-out"
+            isAnimationActive
           />
         </BarChart>
       </ResponsiveContainer>

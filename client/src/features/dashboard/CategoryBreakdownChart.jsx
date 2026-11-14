@@ -9,16 +9,6 @@ import {
 import { useTheme } from "../../app/ThemeContext";
 import "./CategoryBreakdownChart.css";
 
-const formatCurrency = (value) => {
-  const amount = Number(value ?? 0);
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(amount) ? amount : 0);
-};
-
 const DEFAULT_COLORS = [
   "#147D5A",
   "#5185C5",
@@ -30,26 +20,90 @@ const DEFAULT_COLORS = [
   "#6C91A8",
 ];
 
+const getNumericValue = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return 0;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+};
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(getNumericValue(value));
+};
+
+const formatCount = (value) => {
+  return getNumericValue(value).toLocaleString("en-IN");
+};
+
+const getChartData = (data) => {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .filter((category) => category && typeof category === "object")
+    .map((category, index) => ({
+      categoryId: category.categoryId || category._id || null,
+      name:
+        typeof category.name === "string" && category.name.trim()
+          ? category.name.trim()
+          : "Uncategorized",
+      totalAmount: Math.max(getNumericValue(category.totalAmount), 0),
+      transactionCount: Math.max(
+        getNumericValue(category.transactionCount),
+        0
+      ),
+      color:
+        typeof category.color === "string" && category.color.trim()
+          ? category.color
+          : DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+    }))
+    .filter((category) => category.totalAmount > 0);
+};
+
+const CategoryTooltip = ({ active, payload }) => {
+  if (!active || !Array.isArray(payload) || payload.length === 0) {
+    return null;
+  }
+
+  const category = payload[0]?.payload;
+
+  if (!category) return null;
+
+  return (
+    <div className="category-chart-tooltip">
+      <div className="category-tooltip-heading">
+        <span
+          className="category-legend-dot"
+          style={{ backgroundColor: category.color }}
+        />
+        <strong>{category.name}</strong>
+      </div>
+
+      <div className="category-tooltip-row">
+        <span>Amount</span>
+        <strong>{formatCurrency(category.totalAmount)}</strong>
+      </div>
+
+      <div className="category-tooltip-row">
+        <span>Transactions</span>
+        <strong>{formatCount(category.transactionCount)}</strong>
+      </div>
+    </div>
+  );
+};
+
 function CategoryBreakdownChart({ data = [] }) {
   const { isDark } = useTheme();
 
-  const safeData = Array.isArray(data) ? data : [];
-
-  const chartData = safeData
-    .map((category, index) => ({
-      ...category,
-      name: category.name || "Uncategorized",
-      totalAmount: Number(category.totalAmount),
-      transactionCount: Number(category.transactionCount) || 0,
-      color:
-        category.color ||
-        DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-    }))
-    .filter(
-      (category) =>
-        Number.isFinite(category.totalAmount) &&
-        category.totalAmount > 0
-    );
+  const chartData = getChartData(data);
 
   const totalExpenses = chartData.reduce(
     (total, category) => total + category.totalAmount,
@@ -105,17 +159,17 @@ function CategoryBreakdownChart({ data = [] }) {
             >
               {chartData.map((category, index) => (
                 <Cell
-                  key={category.categoryId || `${category.name}-${index}`}
+                  key={
+                    category.categoryId ||
+                    `${category.name}-${index}`
+                  }
                   fill={category.color}
                 />
               ))}
             </Pie>
 
             <Tooltip
-              formatter={(value, name) => [
-                formatCurrency(value),
-                name || "Expenses",
-              ]}
+              content={<CategoryTooltip />}
               contentStyle={tooltipStyle}
             />
           </PieChart>
@@ -137,7 +191,10 @@ function CategoryBreakdownChart({ data = [] }) {
           return (
             <div
               className="category-legend-item"
-              key={category.categoryId || `${category.name}-${index}`}
+              key={
+                category.categoryId ||
+                `${category.name}-${index}`
+              }
             >
               <div className="category-legend-info">
                 <span
@@ -151,13 +208,15 @@ function CategoryBreakdownChart({ data = [] }) {
                   </span>
 
                   <span className="category-legend-count">
-                    {category.transactionCount} transactions
+                    {formatCount(category.transactionCount)} transactions
                   </span>
                 </div>
               </div>
 
               <div className="category-legend-values">
-                <strong>{formatCurrency(category.totalAmount)}</strong>
+                <strong>
+                  {formatCurrency(category.totalAmount)}
+                </strong>
                 <span>{percentage.toFixed(1)}%</span>
               </div>
             </div>

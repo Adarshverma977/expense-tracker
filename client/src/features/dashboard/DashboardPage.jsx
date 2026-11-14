@@ -26,35 +26,58 @@ import "./DashboardPage.css";
 
 const formatCurrency = (amount, currency = "INR") => {
   const numericAmount = Number(amount ?? 0);
+  const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
 
   try {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency,
       maximumFractionDigits: 2,
-    }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+    }).format(safeAmount);
   } catch {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 2,
-    }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+    }).format(safeAmount);
   }
 };
 
 const formatDate = (value, options) => {
+  if (!value) {
+    return "Date unavailable";
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "Date unavailable";
   }
 
-  return new Intl.DateTimeFormat("en-IN", options).format(date);
+  try {
+    return new Intl.DateTimeFormat("en-IN", options).format(date);
+  } catch {
+    return "Date unavailable";
+  }
 };
 
 const getNumericValue = (value) => {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
+};
+
+const getErrorMessage = (error) => {
+  const message = error?.response?.data?.message;
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to load dashboard data. Please try again.";
 };
 
 const containerVariants = {
@@ -81,7 +104,12 @@ const itemVariants = {
 };
 
 const Skeleton = () => (
-  <div className="dashboard-skeleton" aria-label="Loading dashboard">
+  <div
+    className="dashboard-skeleton"
+    aria-label="Loading dashboard"
+    role="status"
+  >
+    <span className="sr-only">Loading dashboard...</span>
     <div className="skeleton-heading skeleton" />
     <div className="skeleton-cards">
       {[1, 2, 3].map((item) => (
@@ -102,34 +130,44 @@ const DashboardPage = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
 
     const fetchDashboard = async () => {
       setIsLoading(true);
       setError("");
 
       try {
-        const response = await api.get("/dashboard");
+        const response = await api.get("/dashboard", {
+          signal: controller.signal,
+        });
 
-        if (!active) return;
+        if (controller.signal.aborted) {
+          return;
+        }
 
         const dashboardData = response?.data?.data;
 
-        if (!dashboardData || typeof dashboardData !== "object") {
+        if (
+          !dashboardData ||
+          typeof dashboardData !== "object" ||
+          Array.isArray(dashboardData)
+        ) {
           throw new Error("Invalid dashboard response received.");
         }
 
         setDashboard(dashboardData);
       } catch (err) {
-        if (!active) return;
+        if (
+          controller.signal.aborted ||
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError"
+        ) {
+          return;
+        }
 
-        setError(
-          err.response?.data?.message ||
-          err.message ||
-          "Unable to load dashboard data."
-        );
+        setError(getErrorMessage(err));
       } finally {
-        if (active) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -138,7 +176,7 @@ const DashboardPage = () => {
     fetchDashboard();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [refreshKey]);
 
@@ -171,10 +209,17 @@ const DashboardPage = () => {
 
   const summary = dashboard?.summary || {};
   const monthly = dashboard?.monthly || {};
-  const currency = dashboard?.currency || "INR";
+
+  const currency =
+    typeof dashboard?.currency === "string" &&
+      dashboard.currency.trim()
+      ? dashboard.currency.trim().toUpperCase()
+      : "INR";
 
   const monthlyTrends = Array.isArray(dashboard?.monthlyTrends)
-    ? dashboard.monthlyTrends
+    ? dashboard.monthlyTrends.filter(
+      (item) => item && typeof item === "object"
+    )
     : [];
 
   const categoryBreakdown = Array.isArray(dashboard?.categoryBreakdown)
@@ -183,8 +228,13 @@ const DashboardPage = () => {
     )
     : [];
 
-  const recentTransactions = Array.isArray(dashboard?.recentTransactions)
-    ? dashboard.recentTransactions
+  const recentTransactions = Array.isArray(
+    dashboard?.recentTransactions
+  )
+    ? dashboard.recentTransactions.filter(
+      (transaction) =>
+        transaction && typeof transaction === "object"
+    )
     : [];
 
   const cards = [
@@ -224,7 +274,10 @@ const DashboardPage = () => {
       initial="hidden"
       animate="visible"
     >
-      <motion.section className="dashboard-welcome" variants={itemVariants}>
+      <motion.section
+        className="dashboard-welcome"
+        variants={itemVariants}
+      >
         <div>
           <span className="dashboard-eyebrow">
             YOUR FINANCIAL OVERVIEW
@@ -239,7 +292,10 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      <motion.section className="dashboard-summary" variants={itemVariants}>
+      <motion.section
+        className="dashboard-summary"
+        variants={itemVariants}
+      >
         {cards.map((card) => {
           const Icon = card.icon;
 
@@ -273,7 +329,10 @@ const DashboardPage = () => {
         })}
       </motion.section>
 
-      <motion.section className="monthly-overview" variants={itemVariants}>
+      <motion.section
+        className="monthly-overview"
+        variants={itemVariants}
+      >
         <div className="section-heading">
           <div>
             <span className="dashboard-eyebrow">THIS MONTH</span>
@@ -363,7 +422,10 @@ const DashboardPage = () => {
         </div>
       </motion.section>
 
-      <motion.section className="recent-transactions" variants={itemVariants}>
+      <motion.section
+        className="recent-transactions"
+        variants={itemVariants}
+      >
         <div className="section-heading">
           <div>
             <span className="dashboard-eyebrow">YOUR ACTIVITY</span>
@@ -383,13 +445,17 @@ const DashboardPage = () => {
         <div className="recent-list">
           <AnimatePresence mode="popLayout">
             {recentTransactions.length > 0 ? (
-              recentTransactions.map((transaction) => {
+              recentTransactions.map((transaction, index) => {
                 const isIncome = transaction.type === "income";
+
+                const transactionKey =
+                  transaction._id ||
+                  `${transaction.title || "transaction"}-${index}`;
 
                 return (
                   <motion.div
                     className="recent-transaction-item"
-                    key={transaction._id}
+                    key={transactionKey}
                     initial={{ opacity: 0, x: -15 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 15 }}
@@ -397,7 +463,9 @@ const DashboardPage = () => {
                     layout
                   >
                     <div
-                      className={`recent-transaction-icon ${isIncome ? "recent-income" : "recent-expense"
+                      className={`recent-transaction-icon ${isIncome
+                          ? "recent-income"
+                          : "recent-expense"
                         }`}
                     >
                       {isIncome ? (
@@ -429,7 +497,12 @@ const DashboardPage = () => {
                       }
                     >
                       {isIncome ? "+" : "-"}
-                      {formatCurrency(transaction.amount, currency)}
+                      {formatCurrency(
+                        Math.abs(
+                          getNumericValue(transaction.amount)
+                        ),
+                        currency
+                      )}
                     </strong>
                   </motion.div>
                 );
@@ -438,7 +511,9 @@ const DashboardPage = () => {
               <div className="recent-empty">
                 <Receipt size={28} />
                 <p>No transactions yet.</p>
-                <span>Your recent activity will appear here.</span>
+                <span>
+                  Your recent activity will appear here.
+                </span>
               </div>
             )}
           </AnimatePresence>
@@ -451,9 +526,15 @@ const DashboardPage = () => {
 const SpendingInsights = ({ data, monthly, currency }) => {
   const categories = data
     .map((category) => ({
-      name: category.name || "Uncategorized",
-      amount: getNumericValue(category.totalAmount),
-      transactionCount: getNumericValue(category.transactionCount),
+      name:
+        typeof category.name === "string" && category.name.trim()
+          ? category.name.trim()
+          : "Uncategorized",
+      amount: Math.max(0, getNumericValue(category.totalAmount)),
+      transactionCount: Math.max(
+        0,
+        getNumericValue(category.transactionCount)
+      ),
     }))
     .filter((category) => category.amount > 0);
 
@@ -462,8 +543,13 @@ const SpendingInsights = ({ data, monthly, currency }) => {
     0
   );
 
-  const monthlyExpenses = getNumericValue(monthly.expenses);
-  const totalExpenses = totalCategoryExpenses || monthlyExpenses;
+  const monthlyExpenses = Math.max(
+    0,
+    getNumericValue(monthly.expenses)
+  );
+
+  const totalExpenses =
+    totalCategoryExpenses || monthlyExpenses;
 
   const totalTransactions = categories.reduce(
     (total, category) => total + category.transactionCount,
@@ -615,8 +701,10 @@ const Metric = ({
 
     <span>
       {count !== undefined && count !== null
-        ? `${count} transactions`
-        : description}
+        ? `${getNumericValue(count).toLocaleString(
+          "en-IN"
+        )} transactions`
+        : description || "No transaction data available"}
     </span>
   </motion.article>
 );

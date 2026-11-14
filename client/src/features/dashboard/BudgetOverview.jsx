@@ -15,12 +15,13 @@ import "./BudgetOverview.css";
 
 const formatCurrency = (amount) => {
   const numericAmount = Number(amount ?? 0);
+  const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
 
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
-  }).format(Number.isFinite(numericAmount) ? numericAmount : 0);
+  }).format(safeAmount);
 };
 
 const getNumericValue = (value) => {
@@ -29,13 +30,13 @@ const getNumericValue = (value) => {
 };
 
 const getBudgetStatus = (budget) => {
-  const percentage = getNumericValue(budget.utilizationPercentage);
+  const percentage = getNumericValue(budget?.utilizationPercentage);
 
-  if (budget.status === "exceeded" || percentage > 100) {
+  if (budget?.status === "exceeded" || percentage > 100) {
     return "exceeded";
   }
 
-  if (budget.status === "warning" || percentage >= 80) {
+  if (budget?.status === "warning" || percentage >= 80) {
     return "warning";
   }
 
@@ -43,11 +44,30 @@ const getBudgetStatus = (budget) => {
 };
 
 const getProgressWidth = (percentage) => {
-  return `${Math.min(Math.max(getNumericValue(percentage), 0), 100)}%`;
+  const safePercentage = Math.min(
+    Math.max(getNumericValue(percentage), 0),
+    100
+  );
+
+  return `${safePercentage}%`;
+};
+
+const getErrorMessage = (error) => {
+  const message = error?.response?.data?.message;
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to load budget overview. Please try again.";
 };
 
 const BudgetLoading = () => (
-  <section className="budget-overview-panel">
+  <section className="budget-overview-panel" aria-busy="true">
     <div className="budget-overview-heading">
       <div>
         <span className="dashboard-eyebrow">BUDGET TRACKER</span>
@@ -55,7 +75,11 @@ const BudgetLoading = () => (
       </div>
     </div>
 
-    <div className="budget-overview-loading" aria-label="Loading budgets">
+    <div
+      className="budget-overview-loading"
+      aria-label="Loading budgets"
+      role="status"
+    >
       <div className="budget-loading-line" />
       <div className="budget-loading-line" />
       <div className="budget-loading-line" />
@@ -72,7 +96,10 @@ const BudgetError = ({ message, onRetry }) => (
       </div>
     </div>
 
-    <div className="budget-overview-message budget-overview-error" role="alert">
+    <div
+      className="budget-overview-message budget-overview-error"
+      role="alert"
+    >
       <AlertTriangle size={22} />
       <p>{message}</p>
       <button type="button" onClick={onRetry}>
@@ -100,7 +127,7 @@ const BudgetOverview = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
 
     const fetchBudgetOverview = async () => {
       setIsLoading(true);
@@ -112,33 +139,53 @@ const BudgetOverview = () => {
         const year = currentDate.getFullYear();
 
         const response = await getBudgets(month, year);
-        const result = response?.data || {};
+
+        if (controller.signal.aborted) return;
+
+        const result = response?.data;
+
+        if (
+          !result ||
+          typeof result !== "object" ||
+          Array.isArray(result)
+        ) {
+          throw new Error("Invalid budget response received.");
+        }
+
         const resultSummary = result.summary || {};
 
-        if (!active) return;
-
         setBudgets(
-          Array.isArray(result.budgets) ? result.budgets : []
+          Array.isArray(result.budgets)
+            ? result.budgets.filter(
+              (budget) => budget && typeof budget === "object"
+            )
+            : []
         );
 
         setSummary({
-          totalBudget: resultSummary.totalBudget ?? "0.00",
-          totalSpent: resultSummary.totalSpent ?? "0.00",
-          totalRemaining: resultSummary.totalRemaining ?? "0.00",
+          totalBudget: getNumericValue(resultSummary.totalBudget),
+          totalSpent: getNumericValue(resultSummary.totalSpent),
+          totalRemaining: getNumericValue(resultSummary.totalRemaining),
           utilizationPercentage: getNumericValue(
             resultSummary.utilizationPercentage
           ),
-          status: resultSummary.status || "safe",
+          status: ["safe", "warning", "exceeded"].includes(
+            resultSummary.status
+          )
+            ? resultSummary.status
+            : "safe",
         });
       } catch (err) {
-        if (!active) return;
+        if (
+          controller.signal.aborted ||
+          err?.code === "ERR_CANCELED"
+        ) {
+          return;
+        }
 
-        setError(
-          err.response?.data?.message ||
-          "Unable to load budget overview."
-        );
+        setError(getErrorMessage(err));
       } finally {
-        if (active) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -147,7 +194,7 @@ const BudgetOverview = () => {
     fetchBudgetOverview();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [refreshKey]);
 
@@ -171,6 +218,11 @@ const BudgetOverview = () => {
   const visibleBudgets = budgets.slice(0, 4);
   const utilizationPercentage = getNumericValue(
     summary.utilizationPercentage
+  );
+
+  const safeUtilization = Math.min(
+    Math.max(utilizationPercentage, 0),
+    100
   );
 
   return (
@@ -268,17 +320,17 @@ const BudgetOverview = () => {
               className="budget-progress-track"
               role="progressbar"
               aria-label="Overall budget utilization"
-              aria-valuenow={Math.min(
-                Math.max(utilizationPercentage, 0),
-                100
-              )}
+              aria-valuenow={safeUtilization}
               aria-valuemin={0}
               aria-valuemax={100}
+              aria-valuetext={`${utilizationPercentage.toFixed(1)} percent utilized`}
             >
               <motion.div
                 className={`budget-progress-fill ${overallStatus}`}
                 initial={{ width: 0 }}
-                animate={{ width: getProgressWidth(utilizationPercentage) }}
+                animate={{
+                  width: getProgressWidth(utilizationPercentage),
+                }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               />
             </div>
@@ -294,7 +346,7 @@ const BudgetOverview = () => {
             </div>
 
             <div className="budget-category-list">
-              {visibleBudgets.map((budget) => {
+              {visibleBudgets.map((budget, index) => {
                 const status = getBudgetStatus(budget);
                 const percentage = getNumericValue(
                   budget.utilizationPercentage
@@ -305,10 +357,13 @@ const BudgetOverview = () => {
                   100
                 );
 
+                const categoryName =
+                  budget.category?.name || "Uncategorized";
+
                 return (
                   <article
                     className="budget-category-item"
-                    key={budget._id}
+                    key={budget._id || `${categoryName}-${index}`}
                   >
                     <div className="budget-category-icon">
                       <Wallet size={18} />
@@ -316,9 +371,7 @@ const BudgetOverview = () => {
 
                     <div className="budget-category-content">
                       <div className="budget-category-top">
-                        <strong>
-                          {budget.category?.name || "Uncategorized"}
-                        </strong>
+                        <strong>{categoryName}</strong>
 
                         <span className={`budget-status-label ${status}`}>
                           {status === "exceeded"
@@ -341,16 +394,20 @@ const BudgetOverview = () => {
                       <div
                         className="budget-progress-track"
                         role="progressbar"
-                        aria-label={`${budget.category?.name || "Category"} budget utilization`}
+                        aria-label={`${categoryName} budget utilization`}
                         aria-valuenow={safePercentage}
                         aria-valuemin={0}
                         aria-valuemax={100}
+                        aria-valuetext={`${percentage.toFixed(1)} percent utilized`}
                       >
                         <motion.div
                           className={`budget-progress-fill ${status}`}
                           initial={{ width: 0 }}
                           animate={{ width: `${safePercentage}%` }}
-                          transition={{ duration: 0.7, ease: "easeOut" }}
+                          transition={{
+                            duration: 0.7,
+                            ease: "easeOut",
+                          }}
                         />
                       </div>
                     </div>
