@@ -1,14 +1,10 @@
 
-/* =========================================
-   BUDGET PAGE
-========================================= */
-
 .budget-page {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding-bottom: 35px;
   min-width: 0;
+  padding-bottom: 35px;
 }
 
 .budget-page-eyebrow {
@@ -48,34 +44,40 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
+  min-height: 43px;
   padding: 12px 19px;
   border: 1px solid var(--color-primary);
   border-radius: 11px;
   background: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-text-inverse);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .budget-create-button:hover {
   transform: translateY(-2px);
-  background: var(--color-primary-dark);
   border-color: var(--color-primary-dark);
+  background: var(--color-primary-dark);
   box-shadow: var(--shadow-md);
+}
+
+.budget-create-button:active {
+  transform: translateY(0);
 }
 
 .budget-create-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
-
-/* =========================================
-   PERIOD NAVIGATION
-========================================= */
 
 .budget-period-navigation {
   display: flex;
@@ -87,12 +89,16 @@
   border-radius: 16px;
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .budget-period-title {
   display: flex;
   align-items: center;
   gap: 13px;
+  min-width: 0;
 }
 
 .budget-period-icon {
@@ -137,10 +143,15 @@
   background: var(--color-surface);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .budget-current-month-button {
+  min-height: 36px;
   padding: 9px 13px;
   color: var(--color-primary);
   font-size: 11px;
@@ -154,19 +165,17 @@
 
 .budget-current-month-button:hover,
 .budget-period-arrow:hover {
+  transform: translateY(-1px);
   border-color: var(--color-primary);
   background: var(--color-primary-light);
   color: var(--color-primary);
 }
 
-/* =========================================
-   SUMMARY CARDS
-========================================= */
-
 .budget-summary-section {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-width: 0;
 }
 
 .budget-summary-grid {
@@ -178,12 +187,16 @@
 .budget-summary-card {
   position: relative;
   overflow: hidden;
+  min-width: 0;
   padding: 22px;
   border: 1px solid var(--color-border);
   border-radius: 17px;
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .budget-summary-card::after {
@@ -259,11 +272,8 @@
   --summary-accent: rgba(22, 134, 90, 0.09);
 }
 
-/* =========================================
-   OVERALL UTILIZATION
-========================================= */
-
 .budget-utilization-card {
+  min-width: 0;
   padding: 23px;
   border: 1px solid var(--color-border);
   border-radius: 16px;
@@ -315,10 +325,11 @@
 }
 
 .budget-progress-fill {
-  height: 100%;
   width: 0;
+  height: 100%;
   border-radius: inherit;
   background: var(--color-primary);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .budget-utilization-footer {
@@ -339,14 +350,11 @@
   background: var(--color-expense);
 }
 
-/* =========================================
-   BUDGET LIST
-========================================= */
-
 .budget-list-section {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 .budget-list-heading {
@@ -380,10 +388,6 @@
   gap: 17px;
 }
 
-/* =========================================
-   INDIVIDUAL BUDGET CARD
-========================================= */
-
 .budget-card {
   min-width: 0;
   padding: 21px;
@@ -391,10 +395,14 @@
   border-radius: 16px;
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .budget-card:hover {
+  transform: translateY(-2px);
   border-color: var(--color-primary);
   box-shadow: var(--shadow-md);
 }
@@ -461,10 +469,15 @@
   background: var(--color-surface-secondary);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .budget-card-actions button:hover {
+  transform: translateY(-1px);
   border-color: var(--color-primary);
   background: var(--color-primary-light);
   color: var(--color-primary);
@@ -475,8 +488,6 @@
   background: var(--color-expense-bg);
   color: var(--color-expense);
 }
-
-/* Card amounts */
 
 .budget-card-amounts {
   display: grid;
@@ -512,8 +523,6 @@
   color: var(--color-primary);
 }
 
-/* Card progress */
-
 .budget-card-progress {
   margin-top: 19px;
 }
@@ -544,8 +553,6 @@
 .budget-card-exceeded .budget-progress-fill {
   background: var(--color-expense);
 }
-
-/* Card footer */
 
 .budget-card-footer {
   display: flex;
@@ -601,10 +608,6 @@
   overflow-wrap: anywhere;
 }
 
-/* =========================================
-   EMPTY STATE
-========================================= */
-
 .budget-empty-state {
   display: flex;
   flex-direction: column;
@@ -644,10 +647,6 @@
   line-height: 1.7;
 }
 
-/* =========================================
-   BUDGET TIP
-========================================= */
-
 .budget-page-tip {
   display: flex;
   align-items: center;
@@ -680,10 +679,6 @@
   color: var(--color-text-primary);
 }
 
-/* =========================================
-   LOADING AND ERROR STATES
-========================================= */
-
 .budget-page-error {
   display: flex;
   align-items: center;
@@ -698,12 +693,14 @@
 
 .budget-page-error span {
   flex: 1;
+  min-width: 0;
 }
 
 .budget-page-error button {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
   border: 0;
   background: transparent;
   color: var(--color-expense);
@@ -766,7 +763,7 @@
 
 .budget-skeleton-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 17px;
 }
 
@@ -780,7 +777,7 @@
 
 .budget-skeleton-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 17px;
 }
 
@@ -789,10 +786,6 @@
     transform: translateX(100%);
   }
 }
-
-/* =========================================
-   MODAL OVERLAY
-========================================= */
 
 .budget-modal-overlay {
   position: fixed;
@@ -805,6 +798,7 @@
   padding: 20px;
   background: var(--color-overlay);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .budget-modal,
@@ -817,6 +811,7 @@
   border-radius: 19px;
   background: var(--color-surface);
   box-shadow: var(--shadow-lg);
+  overscroll-behavior: contain;
 }
 
 .budget-modal {
@@ -836,6 +831,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .budget-modal-icon {
@@ -875,10 +871,14 @@
   background: var(--color-surface);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .budget-modal-close:hover {
+  border-color: var(--color-expense);
   background: var(--color-expense-bg);
   color: var(--color-expense);
 }
@@ -887,10 +887,6 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-/* =========================================
-   BUDGET FORM
-========================================= */
 
 .budget-form {
   display: flex;
@@ -925,7 +921,9 @@
   color: var(--color-text-primary);
   font-family: var(--font-family);
   font-size: 12px;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .budget-form-field input:focus,
@@ -943,10 +941,13 @@
 .budget-amount-input {
   display: flex;
   align-items: center;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   background: var(--color-surface);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .budget-amount-input:focus-within {
@@ -1041,7 +1042,11 @@
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .budget-secondary-button {
@@ -1056,7 +1061,7 @@
 
 .budget-primary-button {
   background: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .budget-primary-button:hover {
@@ -1069,10 +1074,6 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-
-/* =========================================
-   DELETE MODAL
-========================================= */
 
 .budget-delete-modal {
   max-width: 400px;
@@ -1129,9 +1130,12 @@
   filter: brightness(0.92);
 }
 
-/* =========================================
-   RESPONSIVE
-========================================= */
+.budget-page button:focus-visible,
+.budget-modal button:focus-visible,
+.budget-delete-modal button:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
+}
 
 @media (max-width: 1050px) {
   .budget-card-grid {
@@ -1308,13 +1312,30 @@
   .budget-skeleton-grid {
     grid-template-columns: 1fr;
   }
+
+  .budget-page-error {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .budget-page-error span {
+    flex-basis: calc(100% - 35px);
+  }
+
+  .budget-page-error button {
+    margin-left: 29px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .budget-page *,
   .budget-page *::before,
-  .budget-page *::after {
+  .budget-page *::after,
+  .budget-modal *,
+  .budget-delete-modal * {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

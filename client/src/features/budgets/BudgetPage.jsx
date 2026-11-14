@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -11,19 +11,16 @@ import {
   CalendarDays,
   AlertCircle,
 } from "lucide-react";
-
 import {
   getBudgets,
   createBudget,
   updateBudget,
   deleteBudget,
 } from "./budgetService";
-
 import BudgetSummary from "./components/BudgetSummary";
 import BudgetCard from "./components/BudgetCard";
 import BudgetModal from "./components/BudgetModal";
 import DeleteBudgetModal from "./components/DeleteBudgetModal";
-
 import "./BudgetPage.css";
 
 const getCurrentPeriod = () => {
@@ -40,6 +37,11 @@ const formatMonth = (month, year) =>
     month: "long",
     year: "numeric",
   });
+
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.message ||
+  error?.message ||
+  fallback;
 
 const BudgetSkeleton = () => (
   <div className="budget-skeleton">
@@ -66,7 +68,6 @@ const BudgetPage = () => {
 
   const [month, setMonth] = useState(initialPeriod.month);
   const [year, setYear] = useState(initialPeriod.year);
-
   const [budgets, setBudgets] = useState([]);
   const [summary, setSummary] = useState({
     totalBudget: "0.00",
@@ -75,24 +76,28 @@ const BudgetPage = () => {
     utilizationPercentage: 0,
     status: "safe",
   });
-
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [budgetToDelete, setBudgetToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const requestIdRef = useRef(0);
+
   const fetchBudgets = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+
     try {
       setIsLoading(true);
       setPageError("");
 
       const response = await getBudgets(month, year);
+
+      if (requestId !== requestIdRef.current) return;
+
       const result = response?.data || {};
 
       setBudgets(
@@ -108,17 +113,27 @@ const BudgetPage = () => {
         status: result.summary?.status || "safe",
       });
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+
       setPageError(
-        error.response?.data?.message ||
-        "Unable to load your budgets. Please try again."
+        getErrorMessage(
+          error,
+          "Unable to load your budgets. Please try again."
+        )
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [month, year]);
 
   useEffect(() => {
     fetchBudgets();
+
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [fetchBudgets, refreshKey]);
 
   const refreshBudgets = () => {
@@ -143,6 +158,8 @@ const BudgetPage = () => {
   };
 
   const handleBudgetSubmit = async (budgetData) => {
+    if (isSubmitting) return;
+
     try {
       setIsSubmitting(true);
 
@@ -173,7 +190,7 @@ const BudgetPage = () => {
   };
 
   const handleDeleteBudget = async () => {
-    if (!budgetToDelete) return;
+    if (!budgetToDelete || isDeleting) return;
 
     try {
       setIsDeleting(true);
@@ -184,8 +201,10 @@ const BudgetPage = () => {
       refreshBudgets();
     } catch (error) {
       setPageError(
-        error.response?.data?.message ||
-        "Unable to delete this budget. Please try again."
+        getErrorMessage(
+          error,
+          "Unable to delete this budget. Please try again."
+        )
       );
     } finally {
       setIsDeleting(false);
@@ -206,11 +225,9 @@ const BudgetPage = () => {
     setYear(current.year);
   };
 
-  const isCurrentMonth = (() => {
-    const current = getCurrentPeriod();
-
-    return month === current.month && year === current.year;
-  })();
+  const currentPeriod = getCurrentPeriod();
+  const isCurrentMonth =
+    month === currentPeriod.month && year === currentPeriod.year;
 
   if (isLoading && budgets.length === 0 && !pageError) {
     return <BudgetSkeleton />;
@@ -223,7 +240,6 @@ const BudgetPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Page heading */}
       <section className="budget-page-heading">
         <div>
           <span className="budget-page-eyebrow">
@@ -237,17 +253,18 @@ const BudgetPage = () => {
           </p>
         </div>
 
-        <button
+        <motion.button
           type="button"
           className="budget-create-button"
           onClick={openCreateModal}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
         >
           <Plus size={18} />
           Create budget
-        </button>
+        </motion.button>
       </section>
 
-      {/* Month navigation */}
       <section className="budget-period-navigation">
         <div className="budget-period-title">
           <div className="budget-period-icon">
@@ -291,7 +308,6 @@ const BudgetPage = () => {
         </div>
       </section>
 
-      {/* Error message */}
       {pageError && (
         <div className="budget-page-error" role="alert">
           <AlertCircle size={18} />
@@ -305,9 +321,8 @@ const BudgetPage = () => {
         </div>
       )}
 
-      {/* Budget content */}
       {isLoading ? (
-        <div className="budget-inline-loading">
+        <div className="budget-inline-loading" role="status">
           <RefreshCw size={19} className="budget-loading-icon" />
           Updating budget information...
         </div>
@@ -330,7 +345,8 @@ const BudgetPage = () => {
               </div>
 
               <span className="budget-count">
-                {budgets.length} {budgets.length === 1 ? "budget" : "budgets"}
+                {budgets.length}{" "}
+                {budgets.length === 1 ? "budget" : "budgets"}
               </span>
             </div>
 
@@ -386,7 +402,6 @@ const BudgetPage = () => {
         </>
       )}
 
-      {/* Create / Edit modal */}
       <BudgetModal
         isOpen={isBudgetModalOpen}
         budget={selectedBudget}
@@ -397,7 +412,6 @@ const BudgetPage = () => {
         isSubmitting={isSubmitting}
       />
 
-      {/* Delete confirmation */}
       <DeleteBudgetModal
         isOpen={Boolean(budgetToDelete)}
         budget={budgetToDelete}

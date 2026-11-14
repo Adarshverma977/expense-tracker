@@ -1,7 +1,6 @@
 
 import { motion } from "framer-motion";
 import {
-  MoreHorizontal,
   Pencil,
   Trash2,
   Wallet,
@@ -10,18 +9,23 @@ import {
   CircleAlert,
 } from "lucide-react";
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat("en-IN", {
+const formatCurrency = (amount) => {
+  const value = Number(amount);
+
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+  }).format(Number.isFinite(value) ? value : 0);
+};
 
-const getStatus = (budget) => {
-  const spent = Number(budget.spentAmount || 0);
-  const limit = Number(budget.amount || 0);
-  const percentage = Number(budget.utilizationPercentage || 0);
+const getSafeNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
 
+const getStatus = (budget, spent, limit, percentage) => {
   if (spent > limit || budget.status === "exceeded") {
     return {
       label: "Exceeded",
@@ -46,21 +50,46 @@ const getStatus = (budget) => {
 };
 
 const BudgetCard = ({ budget, onEdit, onDelete }) => {
-  const spent = Number(budget.spentAmount || 0);
-  const allocated = Number(budget.amount || 0);
-  const remaining = Number(
-    budget.remainingAmount ?? allocated - spent
+  const spent = getSafeNumber(budget?.spentAmount);
+  const allocated = getSafeNumber(budget?.amount);
+
+  const remaining = getSafeNumber(
+    budget?.remainingAmount,
+    allocated - spent
   );
 
-  const percentage = Number(budget.utilizationPercentage || 0);
+  const percentage = getSafeNumber(
+    budget?.utilizationPercentage
+  );
+
   const progress = Math.min(Math.max(percentage, 0), 100);
 
-  const status = getStatus(budget);
+  const status = getStatus(
+    budget || {},
+    spent,
+    allocated,
+    percentage
+  );
+
   const StatusIcon = status.Icon;
 
-  const category = budget.category || {};
-  const categoryName = category.name || "Unknown category";
-  const categoryColor = category.color || "#176B45";
+  const category =
+    budget?.category && typeof budget.category === "object"
+      ? budget.category
+      : {};
+
+  const categoryName =
+    typeof category.name === "string" && category.name.trim()
+      ? category.name.trim()
+      : "Unknown category";
+
+  const categoryColor =
+    typeof category.color === "string" && category.color.trim()
+      ? category.color
+      : "var(--color-primary)";
+
+  const remainingLabel =
+    remaining < 0 ? "Over budget" : "Remaining";
 
   return (
     <motion.article
@@ -68,7 +97,10 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4 }}
-      transition={{ duration: 0.25 }}
+      transition={{
+        duration: 0.25,
+        ease: "easeOut",
+      }}
     >
       <div className="budget-card-header">
         <div className="budget-category-info">
@@ -78,11 +110,11 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
               "--budget-category-color": categoryColor,
             }}
           >
-            <Wallet size={21} />
+            <Wallet size={21} strokeWidth={1.9} />
           </div>
 
           <div>
-            <h3>{categoryName}</h3>
+            <h3 title={categoryName}>{categoryName}</h3>
             <span>Monthly budget</span>
           </div>
         </div>
@@ -90,7 +122,7 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
         <div className="budget-card-actions">
           <button
             type="button"
-            onClick={() => onEdit(budget)}
+            onClick={() => onEdit?.(budget)}
             aria-label={`Edit ${categoryName} budget`}
             title="Edit budget"
           >
@@ -99,7 +131,7 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
 
           <button
             type="button"
-            onClick={() => onDelete(budget)}
+            onClick={() => onDelete?.(budget)}
             aria-label={`Delete ${categoryName} budget`}
             title="Delete budget"
             className="budget-delete-action"
@@ -133,13 +165,17 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
           aria-label={`${categoryName} budget utilization`}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.max(0, percentage)}
+          aria-valuenow={progress}
+          aria-valuetext={`${percentage.toFixed(1)} percent utilized`}
         >
           <motion.div
             className="budget-progress-fill"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
+            transition={{
+              duration: 0.7,
+              ease: "easeOut",
+            }}
           />
         </div>
       </div>
@@ -151,7 +187,7 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
         </div>
 
         <div className="budget-remaining">
-          <span>{remaining >= 0 ? "Remaining" : "Over budget"}</span>
+          <span>{remainingLabel}</span>
           <strong>{formatCurrency(Math.abs(remaining))}</strong>
         </div>
       </div>

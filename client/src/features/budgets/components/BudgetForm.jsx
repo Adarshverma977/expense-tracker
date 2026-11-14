@@ -1,6 +1,31 @@
 
 import { useEffect, useState } from "react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import { getCategories } from "../../../services/categoryService";
+
+const getCategoryList = (response) => {
+  const data = response?.data;
+
+  const categories =
+    data?.data?.categories ??
+    data?.categories ??
+    data?.data ??
+    [];
+
+  return Array.isArray(categories)
+    ? categories.filter(
+      (category) =>
+        category &&
+        category.isActive !== false &&
+        typeof category._id === "string"
+    )
+    : [];
+};
+
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.message ||
+  error?.message ||
+  fallback;
 
 const BudgetForm = ({
   budget,
@@ -34,23 +59,20 @@ const BudgetForm = ({
 
         if (!active) return;
 
-        const categoryList =
-          response.data?.data?.categories ||
-          response.data?.categories ||
-          [];
-
-        setCategories(
-          categoryList.filter((category) => category.isActive !== false)
-        );
+        setCategories(getCategoryList(response));
       } catch (err) {
         if (active) {
           setCategoryError(
-            err.response?.data?.message ||
-            "Unable to load expense categories."
+            getErrorMessage(
+              err,
+              "Unable to load expense categories."
+            )
           );
         }
       } finally {
-        if (active) setIsLoadingCategories(false);
+        if (active) {
+          setIsLoadingCategories(false);
+        }
       }
     };
 
@@ -64,7 +86,7 @@ const BudgetForm = ({
   useEffect(() => {
     setForm({
       category: budget?.category?._id || "",
-      amount: budget?.amount || "",
+      amount: budget?.amount ?? "",
       month: budget?.month ?? month,
       year: budget?.year ?? year,
     });
@@ -84,37 +106,76 @@ const BudgetForm = ({
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (isSubmitting) return;
+
     const amount = String(form.amount).trim();
     const amountPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+    const numericAmount = Number(amount);
+    const selectedMonth = Number(form.month);
+    const selectedYear = Number(form.year);
 
     if (!budget && !form.category) {
       setError("Please select an expense category.");
       return;
     }
 
-    if (!amountPattern.test(amount) || Number(amount) <= 0) {
-      setError("Enter a valid amount greater than zero (maximum 2 decimals).");
+    if (
+      !amountPattern.test(amount) ||
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0 ||
+      numericAmount > 9999999999999.99
+    ) {
+      setError(
+        "Enter a valid amount greater than zero with a maximum of 2 decimal places."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(selectedMonth) ||
+      selectedMonth < 1 ||
+      selectedMonth > 12
+    ) {
+      setError("Please select a valid month.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(selectedYear) ||
+      selectedYear < 2000 ||
+      selectedYear > 9999
+    ) {
+      setError("Please enter a valid year.");
       return;
     }
 
     try {
+      setError("");
+
       await onSubmit({
         ...(!budget && { category: form.category }),
         amount,
-        month: Number(form.month),
-        year: Number(form.year),
+        month: selectedMonth,
+        year: selectedYear,
       });
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-        err.message ||
-        "Unable to save budget."
+        getErrorMessage(err, "Unable to save budget.")
       );
     }
   };
 
+  const isSubmitDisabled =
+    isSubmitting ||
+    isLoadingCategories ||
+    (!budget && (categories.length === 0 || Boolean(categoryError)));
+
   return (
-    <form className="budget-form" onSubmit={handleSubmit}>
+    <form
+      className="budget-form"
+      onSubmit={handleSubmit}
+      noValidate
+    >
       {!budget && (
         <label className="budget-form-field">
           <span>Expense category</span>
@@ -124,8 +185,9 @@ const BudgetForm = ({
             onChange={(event) =>
               updateField("category", event.target.value)
             }
-            disabled={isLoadingCategories || !!categoryError}
+            disabled={isLoadingCategories || Boolean(categoryError) || isSubmitting}
             required
+            aria-invalid={Boolean(error && !form.category)}
           >
             <option value="">
               {isLoadingCategories
@@ -140,8 +202,14 @@ const BudgetForm = ({
             ))}
           </select>
 
+          {isLoadingCategories && (
+            <small className="budget-field-hint">
+              Loading your expense categories...
+            </small>
+          )}
+
           {categoryError && (
-            <small className="budget-field-error">
+            <small className="budget-field-error" role="alert">
               {categoryError}
             </small>
           )}
@@ -160,8 +228,14 @@ const BudgetForm = ({
       {budget && (
         <div className="budget-fixed-category">
           <span>Expense category</span>
-          <strong>{budget.category?.name || "Selected category"}</strong>
-          <small>Category cannot be changed after budget creation.</small>
+
+          <strong>
+            {budget.category?.name || "Selected category"}
+          </strong>
+
+          <small>
+            Category cannot be changed after budget creation.
+          </small>
         </div>
       )}
 
@@ -170,6 +244,7 @@ const BudgetForm = ({
 
         <div className="budget-amount-input">
           <span>₹</span>
+
           <input
             type="number"
             min="0.01"
@@ -180,7 +255,10 @@ const BudgetForm = ({
             onChange={(event) =>
               updateField("amount", event.target.value)
             }
+            disabled={isSubmitting}
             required
+            inputMode="decimal"
+            aria-invalid={Boolean(error && !String(form.amount).trim())}
           />
         </div>
 
@@ -198,7 +276,7 @@ const BudgetForm = ({
             onChange={(event) =>
               updateField("month", Number(event.target.value))
             }
-            disabled={!!budget}
+            disabled={Boolean(budget) || isSubmitting}
           >
             {Array.from({ length: 12 }, (_, index) => (
               <option key={index + 1} value={index + 1}>
@@ -219,9 +297,9 @@ const BudgetForm = ({
             max="9999"
             value={form.year}
             onChange={(event) =>
-              updateField("year", Number(event.target.value))
+              updateField("year", event.target.value)
             }
-            disabled={!!budget}
+            disabled={Boolean(budget) || isSubmitting}
           />
         </label>
       </div>
@@ -251,17 +329,18 @@ const BudgetForm = ({
         <button
           type="submit"
           className="budget-primary-button"
-          disabled={
-            isSubmitting ||
-            isLoadingCategories ||
-            (!budget && categories.length === 0)
-          }
+          disabled={isSubmitDisabled}
         >
-          {isSubmitting
-            ? "Saving..."
-            : budget
-              ? "Save changes"
-              : "Create budget"}
+          {isSubmitting ? (
+            <>
+              <LoaderCircle size={15} className="budget-loading-icon" />
+              Saving...
+            </>
+          ) : (
+            <>
+              {budget ? "Save changes" : "Create budget"}
+            </>
+          )}
         </button>
       </div>
     </form>
