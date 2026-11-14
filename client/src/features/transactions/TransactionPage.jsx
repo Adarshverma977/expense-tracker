@@ -1,6 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -13,16 +12,13 @@ import {
   Download,
   FileUp,
 } from "lucide-react";
-
 import { AnimatePresence, motion } from "framer-motion";
-
 import TransactionTable from "./components/TransactionTable";
 import TransactionFilters from "./components/TransactionFilters";
 import TransactionModal from "./components/TransactionModal";
 import DeleteTransactionModal from "./components/DeleteTransactionModal";
 import CSVImportModal from "./components/CSVImportModal";
 import CSVImportSummary from "./components/CSVImportSummary";
-
 import {
   getTransactions,
   createTransaction,
@@ -31,53 +27,33 @@ import {
   importTransactions,
   exportTransactions,
 } from "../../services/transactionService";
-
 import { getCategories } from "../../services/categoryService";
-
 import "./TransactionPage.css";
 
-const initialFilters = {
+const PAGE_SIZE = 10;
+
+const createInitialFilters = () => ({
   type: "",
   category: "",
   startDate: "",
   endDate: "",
   search: "",
   page: 1,
-};
+});
 
 const pageVariants = {
-  hidden: {
-    opacity: 0,
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
       duration: 0.35,
-      staggerChildren: 0.09,
+      staggerChildren: 0.08,
     },
   },
 };
 
 const sectionVariants = {
-  hidden: {
-    opacity: 0,
-    y: 18,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-    },
-  },
-};
-
-const cardVariants = {
-  hidden: {
-    opacity: 0,
-    y: 18,
-  },
+  hidden: { opacity: 0, y: 18 },
   visible: {
     opacity: 1,
     y: 0,
@@ -89,10 +65,7 @@ const cardVariants = {
 };
 
 const contentVariants = {
-  hidden: {
-    opacity: 0,
-    y: 10,
-  },
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
     y: 0,
@@ -104,19 +77,15 @@ const contentVariants = {
   exit: {
     opacity: 0,
     y: -8,
-    transition: {
-      duration: 0.2,
-    },
+    transition: { duration: 0.2 },
   },
 };
 
-const extractArray = (response, keys) => {
+const extractArray = (response, keys = []) => {
   const candidates = [
+    response,
     response?.data,
     response?.data?.data,
-    response?.data?.categories,
-    response?.data?.data?.categories,
-    response?.categories,
   ];
 
   for (const candidate of candidates) {
@@ -133,75 +102,130 @@ const extractArray = (response, keys) => {
 };
 
 const extractTransactionList = (response) => {
-  const data = response?.data?.data ?? response?.data ?? {};
+  const candidates = [
+    response?.data?.data,
+    response?.data,
+    response,
+  ];
 
-  const transactions =
-    data?.transactions ||
-    response?.transactions ||
-    [];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return {
+        transactions: candidate,
+        pagination: {},
+      };
+    }
+
+    if (Array.isArray(candidate?.transactions)) {
+      return {
+        transactions: candidate.transactions,
+        pagination: candidate.pagination || {},
+      };
+    }
+  }
 
   return {
-    transactions: Array.isArray(transactions) ? transactions : [],
-    pagination: data?.pagination || response?.pagination || {},
+    transactions: [],
+    pagination: {},
   };
 };
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat("en-IN", {
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.message ||
+  error?.message ||
+  fallback;
+
+const formatCurrency = (amount) => {
+  const value = Number(amount ?? 0);
+
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+  }).format(Number.isFinite(value) ? value : 0);
+};
 
 const getExportErrorMessage = async (error) => {
-  const responseData = error?.response?.data;
+  const data = error?.response?.data;
 
-  if (responseData instanceof Blob) {
+  if (data instanceof Blob) {
     try {
-      const text = await responseData.text();
+      const text = await data.text();
       const parsed = JSON.parse(text);
 
-      return (
-        parsed?.message ||
-        "Unable to export transactions. Please try again."
-      );
+      return parsed?.message || "Unable to export transactions.";
     } catch {
       return "Unable to export transactions. Please try again.";
     }
   }
 
-  return (
-    responseData?.message ||
+  return getErrorMessage(
+    error,
     "Unable to export transactions. Please try again."
   );
+};
+
+const getDateRangeParams = (filters) => {
+  const params = {};
+
+  if (filters.type) params.type = filters.type;
+  if (filters.category) params.category = filters.category;
+
+  if (filters.startDate) {
+    const start = new Date(`${filters.startDate}T00:00:00`);
+
+    if (!Number.isNaN(start.getTime())) {
+      params.startDate = start.toISOString();
+    }
+  }
+
+  if (filters.endDate) {
+    const end = new Date(`${filters.endDate}T23:59:59.999`);
+
+    if (!Number.isNaN(end.getTime())) {
+      params.endDate = end.toISOString();
+    }
+  }
+
+  return params;
+};
+
+const normalizePagination = (data, requestedPage) => {
+  const limit = Math.max(1, Number(data?.limit) || PAGE_SIZE);
+  const total = Math.max(0, Number(data?.total) || 0);
+  const totalPages = Math.max(
+    1,
+    Number(data?.totalPages) || Math.ceil(total / limit)
+  );
+  const page = Math.max(1, Number(data?.page) || requestedPage);
+
+  return {
+    total,
+    page,
+    limit,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
+  };
 };
 
 function TransactionPage() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
-
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  });
-
-  const [filters, setFilters] = useState(initialFilters);
+  const [pagination, setPagination] = useState(
+    normalizePagination({}, 1)
+  );
+  const [filters, setFilters] = useState(createInitialFilters);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const [importResult, setImportResult] = useState(null);
   const [csvImportError, setCsvImportError] = useState("");
-
   const [pageError, setPageError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -209,86 +233,117 @@ function TransactionPage() {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingTransaction, setDeletingTransaction] = useState(null);
 
+  const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
+  const saveLockRef = useRef(false);
+  const deleteLockRef = useRef(false);
+  const importLockRef = useRef(false);
+  const exportLockRef = useRef(false);
+
+  const queryParams = useMemo(
+    () => getDateRangeParams(filters),
+    [filters.type, filters.category, filters.startDate, filters.endDate]
+  );
+
   const fetchCategories = useCallback(async () => {
     const response = await getCategories();
     const result = extractArray(response, ["categories"]);
 
-    setCategories(result);
+    if (mountedRef.current) {
+      setCategories(result.filter(Boolean));
+    }
   }, []);
 
   const fetchTransactions = useCallback(
     async (requestedPage = filters.page) => {
+      const requestId = ++requestIdRef.current;
+
       setIsLoading(true);
       setPageError("");
 
       try {
-        const params = {
+        const response = await getTransactions({
+          ...queryParams,
           page: requestedPage,
-          limit: 10,
-        };
+          limit: PAGE_SIZE,
+        });
 
-        if (filters.type) {
-          params.type = filters.type;
+        if (
+          !mountedRef.current ||
+          requestId !== requestIdRef.current
+        ) {
+          return;
         }
 
-        if (filters.category) {
-          params.category = filters.category;
-        }
-
-        if (filters.startDate) {
-          params.startDate = new Date(
-            `${filters.startDate}T00:00:00`
-          ).toISOString();
-        }
-
-        if (filters.endDate) {
-          params.endDate = new Date(
-            `${filters.endDate}T23:59:59.999`
-          ).toISOString();
-        }
-
-        const response = await getTransactions(params);
         const result = extractTransactionList(response);
 
-        setTransactions(result.transactions);
-
-        setPagination((current) => ({
-          ...current,
-          ...result.pagination,
-          page: result.pagination.page || requestedPage,
-          limit: result.pagination.limit || 10,
-          totalPages: result.pagination.totalPages || 1,
-        }));
+        setTransactions(result.transactions.filter(Boolean));
+        setPagination(
+          normalizePagination(result.pagination, requestedPage)
+        );
       } catch (error) {
+        if (
+          !mountedRef.current ||
+          requestId !== requestIdRef.current
+        ) {
+          return;
+        }
+
+        setTransactions([]);
         setPageError(
-          error?.response?.data?.message ||
-          "Unable to load transactions. Please try again."
+          getErrorMessage(
+            error,
+            "Unable to load transactions. Please try again."
+          )
         );
       } finally {
-        setIsLoading(false);
+        if (
+          mountedRef.current &&
+          requestId === requestIdRef.current
+        ) {
+          setIsLoading(false);
+        }
       }
     },
-    [
-      filters.page,
-      filters.type,
-      filters.category,
-      filters.startDate,
-      filters.endDate,
-    ]
+    [filters.page, queryParams]
   );
 
   useEffect(() => {
+    mountedRef.current = true;
+
     fetchCategories().catch((error) => {
-      setPageError(
-        error?.response?.data?.message ||
-        "Unable to load categories."
-      );
+      if (mountedRef.current) {
+        setNotice(
+          getErrorMessage(
+            error,
+            "Unable to load categories. Please refresh the page."
+          )
+        );
+      }
     });
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchCategories]);
 
   useEffect(() => {
     fetchTransactions();
+
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [fetchTransactions]);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setNotice("");
+    }, 3500);
+
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const visibleTransactions = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
@@ -296,15 +351,16 @@ function TransactionPage() {
     if (!search) return transactions;
 
     return transactions.filter((transaction) => {
-      const category =
-        typeof transaction.category === "object"
-          ? transaction.category?.name
+      const categoryName =
+        transaction.category &&
+          typeof transaction.category === "object"
+          ? transaction.category.name
           : "";
 
       return [
         transaction.title,
         transaction.description,
-        category,
+        categoryName,
         transaction.paymentMethod,
       ]
         .filter(Boolean)
@@ -314,25 +370,27 @@ function TransactionPage() {
     });
   }, [transactions, filters.search]);
 
-  const summary = useMemo(() => {
-    return transactions.reduce(
-      (result, transaction) => {
-        const amount = Number(transaction.amount || 0);
+  const summary = useMemo(
+    () =>
+      transactions.reduce(
+        (result, transaction) => {
+          const amount = Number(transaction.amount ?? 0);
+          const safeAmount = Number.isFinite(amount) ? amount : 0;
 
-        if (transaction.type === "income") {
-          result.income += amount;
-        } else {
-          result.expenses += amount;
-        }
+          if (transaction.type === "income") {
+            result.income += safeAmount;
+          }
 
-        return result;
-      },
-      {
-        income: 0,
-        expenses: 0,
-      }
-    );
-  }, [transactions]);
+          if (transaction.type === "expense") {
+            result.expenses += safeAmount;
+          }
+
+          return result;
+        },
+        { income: 0, expenses: 0 }
+      ),
+    [transactions]
+  );
 
   const openCreateModal = () => {
     setEditingTransaction(null);
@@ -345,13 +403,24 @@ function TransactionPage() {
   };
 
   const closeModal = useCallback(() => {
-    if (isSubmitting) return;
+    if (saveLockRef.current) return;
 
     setIsModalOpen(false);
     setEditingTransaction(null);
-  }, [isSubmitting]);
+  }, []);
+
+  const refreshAfterMutation = async () => {
+    if (filters.page !== 1) {
+      setFilters((current) => ({ ...current, page: 1 }));
+    } else {
+      await fetchTransactions(1);
+    }
+  };
 
   const handleSaveTransaction = async (payload) => {
+    if (saveLockRef.current) return;
+
+    saveLockRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -360,40 +429,40 @@ function TransactionPage() {
           editingTransaction._id || editingTransaction.id,
           payload
         );
-
         setNotice("Transaction updated successfully.");
       } else {
         await createTransaction(payload);
-
         setNotice("Transaction added successfully.");
       }
 
       setIsModalOpen(false);
       setEditingTransaction(null);
 
-      // Always return to page 1 after saving.
-      setFilters((current) => ({
-        ...current,
-        page: 1,
-      }));
-
-      // Fetch page 1 directly to avoid using the previous page.
-      await fetchTransactions(1);
+      await refreshAfterMutation();
     } catch (error) {
-      setPageError(
-        error?.response?.data?.message ||
-        "Unable to save transaction. Please try again."
-      );
+      if (mountedRef.current) {
+        setPageError(
+          getErrorMessage(
+            error,
+            "Unable to save transaction. Please try again."
+          )
+        );
+      }
 
       throw error;
     } finally {
-      setIsSubmitting(false);
+      saveLockRef.current = false;
+
+      if (mountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
   const handleDeleteTransaction = async () => {
-    if (!deletingTransaction) return;
+    if (!deletingTransaction || deleteLockRef.current) return;
 
+    deleteLockRef.current = true;
     setIsDeleting(true);
 
     try {
@@ -405,24 +474,25 @@ function TransactionPage() {
       setNotice("Transaction deleted successfully.");
 
       if (transactions.length === 1 && filters.page > 1) {
-        const previousPage = filters.page - 1;
-
         setFilters((current) => ({
           ...current,
-          page: previousPage,
+          page: current.page - 1,
         }));
-
-        await fetchTransactions(previousPage);
       } else {
         await fetchTransactions();
       }
     } catch (error) {
-      setPageError(
-        error?.response?.data?.message ||
-        "Unable to delete transaction."
-      );
+      if (mountedRef.current) {
+        setPageError(
+          getErrorMessage(error, "Unable to delete transaction.")
+        );
+      }
     } finally {
-      setIsDeleting(false);
+      deleteLockRef.current = false;
+
+      if (mountedRef.current) {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -439,79 +509,58 @@ function TransactionPage() {
   };
 
   const handleResetFilters = () => {
-    setFilters(initialFilters);
+    setFilters(createInitialFilters());
   };
 
-  // CSV IMPORT
   const handleCSVImport = async (file) => {
+    if (importLockRef.current) return;
+
+    importLockRef.current = true;
     setIsImporting(true);
     setCsvImportError("");
-    setPageError("");
 
     try {
       const response = await importTransactions(file);
 
-      // Axios service returns response.data.
-      // Backend response envelope contains the import result in data.
-      const result = response?.data ?? {};
-
       setImportResult(response);
       setIsImportModalOpen(false);
+      setNotice("CSV import completed.");
 
-      setFilters((current) => ({
-        ...current,
-        page: 1,
-      }));
-
-      await fetchTransactions(1);
-
-      setNotice(
-        `${Number(result.imported || 0)} transactions imported successfully.`
-      );
+      await refreshAfterMutation();
     } catch (error) {
-      const message =
-        error?.response?.data?.message ||
-        "Unable to import CSV file. Please check the file and try again.";
-
-      setCsvImportError(message);
+      if (mountedRef.current) {
+        setCsvImportError(
+          getErrorMessage(
+            error,
+            "Unable to import CSV file. Please try again."
+          )
+        );
+      }
     } finally {
-      setIsImporting(false);
+      importLockRef.current = false;
+
+      if (mountedRef.current) {
+        setIsImporting(false);
+      }
     }
   };
 
-  // CSV EXPORT
   const handleCSVExport = async () => {
+    if (exportLockRef.current) return;
+
+    exportLockRef.current = true;
     setIsExporting(true);
-    setPageError("");
 
     try {
-      const params = {};
+      const response = await exportTransactions(queryParams);
+      const responseData = response?.data ?? response;
 
-      if (filters.type) {
-        params.type = filters.type;
-      }
-
-      if (filters.category) {
-        params.category = filters.category;
-      }
-
-      if (filters.startDate) {
-        params.startDate = new Date(
-          `${filters.startDate}T00:00:00`
-        ).toISOString();
-      }
-
-      if (filters.endDate) {
-        params.endDate = new Date(
-          `${filters.endDate}T23:59:59.999`
-        ).toISOString();
-      }
-
-      const response = await exportTransactions(params);
-
-      const blob = new Blob([response.data], {
-        type: "text/csv;charset=utf-8;",
-      });
+      const blob =
+        responseData instanceof Blob
+          ? responseData
+          : new Blob([responseData], {
+            type: "text/csv;charset=utf-8;",
+          });
 
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -531,29 +580,25 @@ function TransactionPage() {
 
       setNotice("Transactions exported successfully.");
     } catch (error) {
-      setPageError(await getExportErrorMessage(error));
+      if (mountedRef.current) {
+        setPageError(await getExportErrorMessage(error));
+      }
     } finally {
-      setIsExporting(false);
+      exportLockRef.current = false;
+
+      if (mountedRef.current) {
+        setIsExporting(false);
+      }
     }
   };
 
-  useEffect(() => {
-    if (!notice) return undefined;
+  const total = pagination.total;
+  const page = pagination.page;
+  const totalPages = pagination.totalPages;
+  const limit = pagination.limit;
 
-    const timeout = window.setTimeout(() => {
-      setNotice("");
-    }, 3000);
-
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
-
-  const total = Number(pagination.total || 0);
-  const page = Number(pagination.page || filters.page);
-
-  const totalPages = Math.max(
-    1,
-    Number(pagination.totalPages || 1)
-  );
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, total);
 
   return (
     <motion.main
@@ -570,12 +615,8 @@ function TransactionPage() {
           <span className="transactions-eyebrow">
             YOUR FINANCIAL ACTIVITY
           </span>
-
           <h1>Transactions</h1>
-
-          <p>
-            Track, manage and understand where your money goes.
-          </p>
+          <p>Track, manage and understand where your money goes.</p>
         </div>
 
         <div className="transactions-header-actions">
@@ -598,15 +639,14 @@ function TransactionPage() {
             className="transaction-secondary-button"
             onClick={handleCSVExport}
             disabled={isExporting}
-            whileHover={!isExporting ? { y: -2 } : {}}
-            whileTap={!isExporting ? { scale: 0.97 } : {}}
+            whileHover={!isExporting ? { y: -2 } : undefined}
+            whileTap={!isExporting ? { scale: 0.97 } : undefined}
           >
             {isExporting ? (
               <span className="transaction-loading-spinner csv-button-spinner" />
             ) : (
               <Download size={17} />
             )}
-
             {isExporting ? "Exporting..." : "Export CSV"}
           </motion.button>
 
@@ -616,7 +656,6 @@ function TransactionPage() {
             onClick={openCreateModal}
             whileHover={{ y: -2, scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.2 }}
           >
             <Plus size={18} />
             Add transaction
@@ -646,14 +685,12 @@ function TransactionPage() {
       >
         <motion.article
           className="transactions-summary-card"
-          variants={cardVariants}
+          variants={sectionVariants}
           whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
         >
           <div className="transactions-summary-icon total">
             <ReceiptText size={20} />
           </div>
-
           <div>
             <span>Transactions on this page</span>
             <strong>{transactions.length}</strong>
@@ -662,14 +699,12 @@ function TransactionPage() {
 
         <motion.article
           className="transactions-summary-card"
-          variants={cardVariants}
+          variants={sectionVariants}
           whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
         >
           <div className="transactions-summary-icon income">
             <ArrowDownLeft size={20} />
           </div>
-
           <div>
             <span>Income on this page</span>
             <strong className="income-text">
@@ -680,14 +715,12 @@ function TransactionPage() {
 
         <motion.article
           className="transactions-summary-card"
-          variants={cardVariants}
+          variants={sectionVariants}
           whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
         >
           <div className="transactions-summary-icon expense">
             <ArrowUpRight size={20} />
           </div>
-
           <div>
             <span>Expenses on this page</span>
             <strong className="expense-text">
@@ -698,14 +731,12 @@ function TransactionPage() {
 
         <motion.article
           className="transactions-summary-card"
-          variants={cardVariants}
+          variants={sectionVariants}
           whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
         >
           <div className="transactions-summary-icon count">
             <Wallet size={20} />
           </div>
-
           <div>
             <span>All transactions</span>
             <strong>{total}</strong>
@@ -737,14 +768,12 @@ function TransactionPage() {
             className="transaction-refresh-button"
             onClick={() => fetchTransactions()}
             disabled={isLoading}
-            whileHover={!isLoading ? { y: -2 } : {}}
-            whileTap={!isLoading ? { scale: 0.96 } : {}}
+            whileHover={!isLoading ? { y: -2 } : undefined}
+            whileTap={!isLoading ? { scale: 0.96 } : undefined}
           >
             <RefreshCw
               size={16}
-              className={
-                isLoading ? "transaction-refreshing" : ""
-              }
+              className={isLoading ? "transaction-refreshing" : ""}
             />
             Refresh
           </motion.button>
@@ -761,11 +790,11 @@ function TransactionPage() {
               exit="exit"
             >
               <p>{pageError}</p>
-
               <button
                 type="button"
                 className="transaction-secondary-button"
                 onClick={() => {
+                  setPageError("");
                   fetchCategories().catch(() => { });
                   fetchTransactions();
                 }}
@@ -801,9 +830,7 @@ function TransactionPage() {
 
               <div className="transaction-pagination">
                 <span>
-                  Showing {total === 0 ? 0 : (page - 1) * 10 + 1}
-                  {"–"}
-                  {Math.min(page * 10, total)} of {total} transactions
+                  Showing {startItem}–{endItem} of {total} transactions
                 </span>
 
                 <div>
@@ -814,15 +841,11 @@ function TransactionPage() {
                     onClick={() =>
                       setFilters((current) => ({
                         ...current,
-                        page: current.page - 1,
+                        page: Math.max(1, current.page - 1),
                       }))
                     }
-                    whileHover={
-                      page > 1 ? { scale: 1.06 } : {}
-                    }
-                    whileTap={
-                      page > 1 ? { scale: 0.94 } : {}
-                    }
+                    whileHover={page > 1 ? { scale: 1.06 } : undefined}
+                    whileTap={page > 1 ? { scale: 0.94 } : undefined}
                   >
                     <ChevronLeft size={18} />
                   </motion.button>
@@ -838,14 +861,14 @@ function TransactionPage() {
                     onClick={() =>
                       setFilters((current) => ({
                         ...current,
-                        page: current.page + 1,
+                        page: Math.min(totalPages, current.page + 1),
                       }))
                     }
                     whileHover={
-                      page < totalPages ? { scale: 1.06 } : {}
+                      page < totalPages ? { scale: 1.06 } : undefined
                     }
                     whileTap={
-                      page < totalPages ? { scale: 0.94 } : {}
+                      page < totalPages ? { scale: 0.94 } : undefined
                     }
                   >
                     <ChevronRight size={18} />

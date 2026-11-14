@@ -1,3 +1,4 @@
+
 import "./CSVImportModal.css";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -15,9 +16,11 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
+
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
+
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
@@ -26,8 +29,11 @@ function CSVImportModal({
   onClose,
   onImport,
   isImporting = false,
+  apiError = "",
 }) {
   const fileInputRef = useRef(null);
+  const browseButtonRef = useRef(null);
+  const previousActiveElementRef = useRef(null);
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
@@ -38,8 +44,67 @@ function CSVImportModal({
       setSelectedFile(null);
       setError("");
       setIsDragging(false);
+      return undefined;
     }
-  }, [isOpen]);
+
+    previousActiveElementRef.current = document.activeElement;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusFrame = requestAnimationFrame(() => {
+      browseButtonRef.current?.focus();
+    });
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+
+        if (!isImporting) {
+          onClose?.();
+        }
+
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const modal = document.querySelector(".csv-import-modal");
+
+        const focusableElements = modal?.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+
+        if (!focusableElements?.length) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement =
+          focusableElements[focusableElements.length - 1];
+
+        if (
+          event.shiftKey &&
+          document.activeElement === firstElement
+        ) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (
+          !event.shiftKey &&
+          document.activeElement === lastElement
+        ) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousActiveElementRef.current?.focus?.();
+    };
+  }, [isOpen, isImporting, onClose]);
 
   const validateFile = (file) => {
     if (!file) return false;
@@ -61,8 +126,8 @@ function CSVImportModal({
       return false;
     }
 
-    setError("");
     setSelectedFile(file);
+    setError("");
     return true;
   };
 
@@ -92,13 +157,39 @@ function CSVImportModal({
   const handleImport = async () => {
     if (!selectedFile || isImporting) return;
 
-    await onImport(selectedFile);
+    setError("");
+
+    try {
+      await onImport(selectedFile);
+    } catch (importError) {
+      setError(
+        importError?.response?.data?.message ||
+        importError?.message ||
+        "Unable to import CSV file. Please try again."
+      );
+    }
   };
 
   const handleClose = () => {
     if (isImporting) return;
-    onClose();
+
+    onClose?.();
   };
+
+  const handleRemoveFile = () => {
+    if (isImporting) return;
+
+    setSelectedFile(null);
+    setError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    browseButtonRef.current?.focus();
+  };
+
+  const displayedError = error || apiError;
 
   return (
     <AnimatePresence>
@@ -108,6 +199,7 @@ function CSVImportModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               handleClose();
@@ -119,6 +211,7 @@ function CSVImportModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="csv-import-title"
+            aria-describedby="csv-import-description"
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -130,9 +223,11 @@ function CSVImportModal({
                   TRANSACTION MANAGEMENT
                 </span>
 
-                <h2 id="csv-import-title">Import transactions</h2>
+                <h2 id="csv-import-title">
+                  Import transactions
+                </h2>
 
-                <p>
+                <p id="csv-import-description">
                   Upload a CSV file to add transactions to Moneta.
                 </p>
               </div>
@@ -154,10 +249,18 @@ function CSVImportModal({
                   } ${selectedFile ? "has-file" : ""}`}
                 onDragOver={(event) => {
                   event.preventDefault();
-                  if (!isImporting) setIsDragging(true);
+
+                  if (!isImporting) {
+                    setIsDragging(true);
+                  }
                 }}
-                onDragLeave={() => setIsDragging(false)}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setIsDragging(false);
+                  }
+                }}
                 onDrop={handleDrop}
+                aria-label="CSV file upload area"
               >
                 <input
                   ref={fileInputRef}
@@ -166,6 +269,7 @@ function CSVImportModal({
                   hidden
                   onChange={handleFileChange}
                   disabled={isImporting}
+                  aria-label="Choose CSV file"
                 />
 
                 {selectedFile ? (
@@ -175,17 +279,18 @@ function CSVImportModal({
                     </div>
 
                     <div className="csv-file-details">
-                      <strong>{selectedFile.name}</strong>
-                      <span>{formatFileSize(selectedFile.size)}</span>
+                      <strong title={selectedFile.name}>
+                        {selectedFile.name}
+                      </strong>
+                      <span>
+                        {formatFileSize(selectedFile.size)}
+                      </span>
                     </div>
 
                     <button
                       type="button"
                       className="csv-remove-file"
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setError("");
-                      }}
+                      onClick={handleRemoveFile}
                       disabled={isImporting}
                       aria-label="Remove selected file"
                     >
@@ -200,11 +305,10 @@ function CSVImportModal({
 
                     <h3>Drop your CSV file here</h3>
 
-                    <p>
-                      or choose a file from your device
-                    </p>
+                    <p>or choose a file from your device</p>
 
                     <button
+                      ref={browseButtonRef}
                       type="button"
                       className="transaction-secondary-button csv-browse-button"
                       onClick={() => fileInputRef.current?.click()}
@@ -233,17 +337,21 @@ function CSVImportModal({
                 </ul>
               </div>
 
-              {error && (
-                <motion.div
-                  className="csv-import-error"
-                  role="alert"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <AlertCircle size={17} />
-                  <span>{error}</span>
-                </motion.div>
-              )}
+              <AnimatePresence mode="wait">
+                {displayedError && (
+                  <motion.div
+                    key={displayedError}
+                    className="csv-import-error"
+                    role="alert"
+                    initial={{ opacity: 0, y: 5, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -5, height: 0 }}
+                  >
+                    <AlertCircle size={17} />
+                    <span>{displayedError}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="csv-import-note">
                 <CheckCircle2 size={16} />
