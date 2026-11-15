@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useCallback,
@@ -8,35 +9,66 @@ import {
 
 const ThemeContext = createContext(null);
 
+const STORAGE_KEY = "expense-tracker-theme";
+
+const isValidTheme = (value) =>
+  value === "light" || value === "dark";
+
 const getInitialTheme = () => {
   try {
-    const savedTheme = localStorage.getItem("expense-tracker-theme");
+    const savedTheme = localStorage.getItem(STORAGE_KEY);
 
-    return savedTheme === "dark" || savedTheme === "light"
-      ? savedTheme
-      : "light";
+    return isValidTheme(savedTheme) ? savedTheme : "light";
   } catch {
     return "light";
   }
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(getInitialTheme);
+  const [theme, setThemeState] = useState(getInitialTheme);
+
+  const setTheme = useCallback((nextTheme) => {
+    setThemeState((currentTheme) => {
+      const resolvedTheme =
+        typeof nextTheme === "function"
+          ? nextTheme(currentTheme)
+          : nextTheme;
+
+      return isValidTheme(resolvedTheme)
+        ? resolvedTheme
+        : currentTheme;
+    });
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState((currentTheme) =>
+      currentTheme === "light" ? "dark" : "light"
+    );
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.style.colorScheme = theme;
 
     try {
-      localStorage.setItem("expense-tracker-theme", theme);
-    } catch (error) {
-      console.error("Unable to save theme preference:", error);
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      return;
     }
   }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((currentTheme) =>
-      currentTheme === "light" ? "dark" : "light"
-    );
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === STORAGE_KEY && isValidTheme(event.newValue)) {
+        setThemeState(event.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   const value = {
