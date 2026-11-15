@@ -1,5 +1,6 @@
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import {
   X,
@@ -21,13 +22,16 @@ const GoalModal = ({
   const isEditMode = mode === "edit";
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const previousActiveElement = document.activeElement;
     const previousOverflow = document.body.style.overflow;
 
     document.body.style.overflow = "hidden";
-    modalRef.current?.focus();
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      modalRef.current?.focus();
+    });
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -72,7 +76,10 @@ const GoalModal = ({
       if (event.shiftKey && activeElement === firstElement) {
         event.preventDefault();
         lastElement.focus();
-      } else if (!event.shiftKey && activeElement === lastElement) {
+      } else if (
+        !event.shiftKey &&
+        activeElement === lastElement
+      ) {
         event.preventDefault();
         firstElement.focus();
       }
@@ -81,6 +88,7 @@ const GoalModal = ({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       previousActiveElement?.focus?.();
@@ -89,7 +97,7 @@ const GoalModal = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="goal-modal-overlay"
       onMouseDown={(event) => {
@@ -156,7 +164,8 @@ const GoalModal = ({
           loading={loading}
         />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

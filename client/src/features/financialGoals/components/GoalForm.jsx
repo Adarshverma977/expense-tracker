@@ -52,7 +52,6 @@ const isValidDate = (date) => {
   if (!datePattern.test(date)) return false;
 
   const [year, month, day] = date.split("-").map(Number);
-
   const parsedDate = new Date(Date.UTC(year, month - 1, day));
 
   return (
@@ -190,203 +189,190 @@ const GoalForm = ({
         color: formData.color,
       });
     } catch (error) {
-      setSubmitError(
-        getErrorMessage(error),
-      );
+      setSubmitError(getErrorMessage(error));
     }
   };
 
   return (
     <form className="goal-form" onSubmit={handleSubmit}>
-      <div className="goal-form-field">
-        <label htmlFor="goal-title">
-          Goal name
-        </label>
-
-        <input
-          id="goal-title"
-          name="title"
-          value={formData.title}
-          onChange={handleChange}
-          placeholder="e.g. Buy a new laptop"
-          maxLength={100}
-          required
-          disabled={loading}
-          aria-invalid={Boolean(errors.title)}
-          aria-describedby={errors.title ? "goal-title-error" : undefined}
-        />
-
-        {errors.title && (
-          <span id="goal-title-error" className="goal-form-error">
-            {errors.title}
-          </span>
-        )}
-      </div>
-
-      <div className="goal-form-field">
-        <label htmlFor="goal-description">
-          Description <span>(Optional)</span>
-        </label>
-
-        <textarea
-          id="goal-description"
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          placeholder="What are you saving for?"
-          maxLength={500}
-          rows={3}
-          disabled={loading}
-          aria-invalid={Boolean(errors.description)}
-          aria-describedby={
-            errors.description ? "goal-description-error" : undefined
-          }
-        />
-
-        {errors.description && (
-          <span
-            id="goal-description-error"
-            className="goal-form-error"
-          >
-            {errors.description}
-          </span>
-        )}
-      </div>
-
-      <div className="goal-form-row">
+      <div className="goal-form-content">
         <div className="goal-form-field">
-          <label htmlFor="goal-target-amount">
-            <IndianRupee size={14} />
-            Target amount
-          </label>
+          <label htmlFor="goal-title">Goal name</label>
 
           <input
-            id="goal-target-amount"
-            type="text"
-            inputMode="decimal"
-            name="targetAmount"
-            value={formData.targetAmount}
+            id="goal-title"
+            name="title"
+            value={formData.title}
             onChange={handleChange}
-            placeholder="50000"
-            maxLength={15}
+            placeholder="e.g. Buy a new laptop"
+            maxLength={100}
             required
             disabled={loading}
-            aria-invalid={Boolean(errors.targetAmount)}
-            aria-describedby={
-              errors.targetAmount ? "goal-amount-error" : undefined
-            }
+            aria-invalid={Boolean(errors.title)}
+            aria-describedby={errors.title ? "goal-title-error" : undefined}
           />
 
-          {errors.targetAmount && (
-            <span
-              id="goal-amount-error"
-              className="goal-form-error"
-            >
-              {errors.targetAmount}
-            </span>
-          )}
-
-          {isEditMode && initialGoal && (
-            <span className="goal-form-hint">
-              Already saved: ₹
-              {Number(initialGoal.savedAmount || 0).toLocaleString(
-                "en-IN",
-              )}
+          {errors.title && (
+            <span id="goal-title-error" className="goal-form-error">
+              {errors.title}
             </span>
           )}
         </div>
 
         <div className="goal-form-field">
-          <label htmlFor="goal-target-date">
-            <CalendarDays size={14} />
-            Target date
+          <label htmlFor="goal-description">
+            Description <span>(Optional)</span>
           </label>
 
-          <input
-            id="goal-target-date"
-            type="date"
-            name="targetDate"
-            value={formData.targetDate}
+          <textarea
+            id="goal-description"
+            name="description"
+            value={formData.description}
             onChange={handleChange}
-            required
+            placeholder="What are you saving for?"
+            maxLength={500}
+            rows={3}
             disabled={loading}
-            aria-invalid={Boolean(errors.targetDate)}
+            aria-invalid={Boolean(errors.description)}
             aria-describedby={
-              errors.targetDate ? "goal-date-error" : undefined
+              errors.description ? "goal-description-error" : undefined
             }
           />
 
-          {errors.targetDate && (
-            <span
-              id="goal-date-error"
-              className="goal-form-error"
-            >
-              {errors.targetDate}
+          {errors.description && (
+            <span id="goal-description-error" className="goal-form-error">
+              {errors.description}
             </span>
           )}
         </div>
-      </div>
 
-      <div className="goal-form-field">
-        <label htmlFor="goal-icon">
-          <Target size={14} />
-          Goal icon
-        </label>
+        <div className="goal-form-row">
+          <div className="goal-form-field">
+            <label htmlFor="goal-target-amount">
+              <IndianRupee size={14} />
+              Target amount
+            </label>
 
-        <select
-          id="goal-icon"
-          name="icon"
-          value={formData.icon}
-          onChange={handleChange}
-          disabled={loading}
-        >
-          <option value="target">Target</option>
-          <option value="home">Home</option>
-          <option value="car">Car</option>
-          <option value="education">Education</option>
-          <option value="travel">Travel</option>
-          <option value="laptop">Laptop</option>
-          <option value="emergency">Emergency Fund</option>
-        </select>
-      </div>
-
-      <div className="goal-form-field">
-        <label>Choose a color</label>
-
-        <div className="goal-color-options">
-          {goalColors.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={`goal-color-option ${formData.color === color ? "selected" : ""
-                }`}
-              style={{ "--option-color": color }}
-              onClick={() => {
-                setFormData((previous) => ({
-                  ...previous,
-                  color,
-                }));
-
-                setSubmitError("");
-              }}
-              aria-label={`Select ${color}`}
-              aria-pressed={formData.color === color}
+            <input
+              id="goal-target-amount"
+              type="text"
+              inputMode="decimal"
+              name="targetAmount"
+              value={formData.targetAmount}
+              onChange={handleChange}
+              placeholder="50000"
+              maxLength={15}
+              required
               disabled={loading}
+              aria-invalid={Boolean(errors.targetAmount)}
+              aria-describedby={
+                errors.targetAmount ? "goal-amount-error" : undefined
+              }
             />
-          ))}
-        </div>
-      </div>
 
-      {submitError && (
-        <div
-          className="goal-action-error"
-          role="alert"
-          aria-live="assertive"
-        >
-          <AlertCircle size={17} />
-          <span>{submitError}</span>
+            {errors.targetAmount && (
+              <span id="goal-amount-error" className="goal-form-error">
+                {errors.targetAmount}
+              </span>
+            )}
+
+            {isEditMode && initialGoal && (
+              <span className="goal-form-hint">
+                Already saved: ₹
+                {Number(initialGoal.savedAmount || 0).toLocaleString("en-IN")}
+              </span>
+            )}
+          </div>
+
+          <div className="goal-form-field">
+            <label htmlFor="goal-target-date">
+              <CalendarDays size={14} />
+              Target date
+            </label>
+
+            <input
+              id="goal-target-date"
+              type="date"
+              name="targetDate"
+              value={formData.targetDate}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              aria-invalid={Boolean(errors.targetDate)}
+              aria-describedby={
+                errors.targetDate ? "goal-date-error" : undefined
+              }
+            />
+
+            {errors.targetDate && (
+              <span id="goal-date-error" className="goal-form-error">
+                {errors.targetDate}
+              </span>
+            )}
+          </div>
         </div>
-      )}
+
+        <div className="goal-form-field">
+          <label htmlFor="goal-icon">
+            <Target size={14} />
+            Goal icon
+          </label>
+
+          <select
+            id="goal-icon"
+            name="icon"
+            value={formData.icon}
+            onChange={handleChange}
+            disabled={loading}
+          >
+            <option value="target">Target</option>
+            <option value="home">Home</option>
+            <option value="car">Car</option>
+            <option value="education">Education</option>
+            <option value="travel">Travel</option>
+            <option value="laptop">Laptop</option>
+            <option value="emergency">Emergency Fund</option>
+          </select>
+        </div>
+
+        <div className="goal-form-field">
+          <label>Choose a color</label>
+
+          <div className="goal-color-options">
+            {goalColors.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`goal-color-option ${formData.color === color ? "selected" : ""
+                  }`}
+                style={{ "--option-color": color }}
+                onClick={() => {
+                  setFormData((previous) => ({
+                    ...previous,
+                    color,
+                  }));
+
+                  setSubmitError("");
+                }}
+                aria-label={`Select ${color}`}
+                aria-pressed={formData.color === color}
+                disabled={loading}
+              />
+            ))}
+          </div>
+        </div>
+
+        {submitError && (
+          <div
+            className="goal-action-error"
+            role="alert"
+            aria-live="assertive"
+          >
+            <AlertCircle size={17} />
+            <span>{submitError}</span>
+          </div>
+        )}
+      </div>
 
       <div className="goal-form-actions">
         <button
