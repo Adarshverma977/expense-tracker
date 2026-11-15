@@ -1,12 +1,11 @@
 const mongoose = require("mongoose");
 
 const FinancialGoal = require("../models/FinancialGoal");
+const GoalContribution = require("../models/GoalContribution");
 const AppError = require("../utils/AppError");
 
 const MAX_AMOUNT_MINOR_UNITS = 99999999999999n;
 
-// Convert Decimal128 amount into integer paise.
-// BigInt avoids floating-point precision errors.
 const toMinorUnits = (value) => {
   if (value === null || value === undefined) {
     throw new Error("Invalid monetary value received.");
@@ -52,7 +51,6 @@ const toMinorUnits = (value) => {
   return sign === "-" ? -minorUnits : minorUnits;
 };
 
-// Convert integer paise into a decimal string.
 const fromMinorUnits = (value) => {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
@@ -63,7 +61,6 @@ const fromMinorUnits = (value) => {
   return `${negative ? "-" : ""}${whole}.${fraction}`;
 };
 
-// Validate monetary amounts.
 const validateAmount = (amount) => {
   let minorUnits;
 
@@ -80,7 +77,6 @@ const validateAmount = (amount) => {
   return minorUnits;
 };
 
-// Validate target date.
 const validateTargetDate = (date) => {
   const targetDate = new Date(date);
 
@@ -91,7 +87,6 @@ const validateTargetDate = (date) => {
   return targetDate;
 };
 
-// Format goal with calculated progress.
 const formatGoal = (goal) => {
   const data = goal.toObject ? goal.toObject() : goal;
 
@@ -113,7 +108,6 @@ const formatGoal = (goal) => {
   };
 };
 
-// CREATE FINANCIAL GOAL
 const createFinancialGoal = async (userId, goalData) => {
   const { title, description, targetAmount, targetDate, icon, color } =
     goalData;
@@ -138,15 +132,11 @@ const createFinancialGoal = async (userId, goalData) => {
   return formatGoal(goal);
 };
 
-// GET ALL FINANCIAL GOALS
 const getFinancialGoals = async (userId, filters = {}) => {
   const query = {
     user: userId,
+    status: filters.status || { $in: ["active", "completed"] },
   };
-
-  if (filters.status) {
-    query.status = filters.status;
-  }
 
   const goals = await FinancialGoal.find(query)
     .sort({ createdAt: -1, _id: -1 })
@@ -155,7 +145,6 @@ const getFinancialGoals = async (userId, filters = {}) => {
   return goals.map(formatGoal);
 };
 
-// GET SINGLE FINANCIAL GOAL
 const getFinancialGoalById = async (userId, goalId) => {
   if (!mongoose.isValidObjectId(goalId)) {
     throw new AppError("Invalid financial goal ID.", 400);
@@ -173,7 +162,6 @@ const getFinancialGoalById = async (userId, goalId) => {
   return formatGoal(goal);
 };
 
-// UPDATE FINANCIAL GOAL
 const updateFinancialGoal = async (userId, goalId, updates) => {
   if (!mongoose.isValidObjectId(goalId)) {
     throw new AppError("Invalid financial goal ID.", 400);
@@ -194,7 +182,6 @@ const updateFinancialGoal = async (userId, goalId, updates) => {
 
   if (updates.targetAmount !== undefined) {
     const newTargetAmount = validateAmount(updates.targetAmount);
-
     const currentSavedAmount = toMinorUnits(goal.savedAmount.toString());
 
     if (newTargetAmount < currentSavedAmount) {
@@ -211,6 +198,9 @@ const updateFinancialGoal = async (userId, goalId, updates) => {
     if (newTargetAmount > currentSavedAmount) {
       goal.status = "active";
       goal.completedAt = null;
+    } else {
+      goal.status = "completed";
+      goal.completedAt = goal.completedAt || new Date();
     }
   }
 
@@ -239,7 +229,6 @@ const updateFinancialGoal = async (userId, goalId, updates) => {
   return formatGoal(goal);
 };
 
-// ARCHIVE FINANCIAL GOAL
 const archiveFinancialGoal = async (userId, goalId) => {
   if (!mongoose.isValidObjectId(goalId)) {
     throw new AppError("Invalid financial goal ID.", 400);
@@ -272,12 +261,131 @@ const archiveFinancialGoal = async (userId, goalId) => {
   };
 };
 
+const restoreFinancialGoal = async (userId, goalId) => {
+  if (!mongoose.isValidObjectId(goalId)) {
+    throw new AppError("Invalid financial goal ID.", 400);
+  }
+
+  const existingGoal = await FinancialGoal.findOne({
+    _id: goalId,
+    user: userId,
+    status: "archived",
+  }).lean();
+
+  if (!existingGoal) {
+    throw new AppError("Archived financial goal not found.", 404);
+  }
+
+  const savedAmount = toMinorUnits(existingGoal.savedAmount.toString());
+  const targetAmount = toMinorUnits(existingGoal.targetAmount.toString());
+
+  const isCompleted = savedAmount >= targetAmount;
+  const now = new Date();
+
+  const goal = await FinancialGoal.findOneAndUpdate(
+    {
+      _id: goalId,
+      user: userId,
+      status: "archived",
+    },
+    {
+      $set: {
+        status: isCompleted ? "completed" : "active",
+        archivedAt: null,
+        completedAt: isCompleted ? existingGoal.completedAt || now : null,
+      },
+    },
+    {
+      returnDocument: "after",
+      runValidators: true,
+    },
+  );
+
+  if (!goal) {
+    throw new AppError("Financial goal could not be restored.", 409);
+  }
+
+  return formatGoal(goal);
+};
+
+const isTransactionUnsupported = (error) => {
+  const message = error?.message || "";
+
+  return (
+    error?.code === 20 ||
+    error?.codeName === "IllegalOperation" ||
+    message.includes("Transaction numbers are only allowed") ||
+    message.includes("does not support retryable writes")
+  );
+};
+
+const permanentlyDeleteFinancialGoal = async (userId, goalId) => {
+  if (!mongoose.isValidObjectId(goalId)) {
+    throw new AppError("Invalid financial goal ID.", 400);
+  }
+
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const goal = await FinancialGoal.findOne({
+        _id: goalId,
+        user: userId,
+        status: "archived",
+      }).session(session);
+
+      if (!goal) {
+        throw new AppError(
+          "Only archived financial goals can be permanently deleted.",
+          404,
+        );
+      }
+
+      await GoalContribution.deleteMany({
+        user: userId,
+        goal: goalId,
+      }).session(session);
+
+      const deletionResult = await FinancialGoal.deleteOne({
+        _id: goalId,
+        user: userId,
+        status: "archived",
+      }).session(session);
+
+      if (deletionResult.deletedCount !== 1) {
+        throw new AppError("Financial goal could not be deleted.", 409);
+      }
+    });
+
+    return {
+      message: "Financial goal permanently deleted successfully.",
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    if (isTransactionUnsupported(error)) {
+      throw new AppError(
+        "Permanent deletion requires MongoDB transaction support.",
+        503,
+      );
+    }
+
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
 module.exports = {
   createFinancialGoal,
   getFinancialGoals,
   getFinancialGoalById,
   updateFinancialGoal,
   archiveFinancialGoal,
+  restoreFinancialGoal,
+  permanentlyDeleteFinancialGoal,
   toMinorUnits,
   fromMinorUnits,
   formatGoal,

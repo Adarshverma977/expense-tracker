@@ -2,12 +2,10 @@ const { z } = require("zod");
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
-// Financial goal ID validation
 const goalIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid financial goal ID.");
 
-// Monetary amount validation
 const amountSchema = z
   .string()
   .trim()
@@ -22,7 +20,6 @@ const amountSchema = z
     return BigInt(whole) <= 999999999999n;
   }, "Target amount exceeds the maximum allowed value.");
 
-// Strict calendar date validation
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must follow YYYY-MM-DD format.")
@@ -38,20 +35,17 @@ const dateSchema = z
     );
   }, "Please provide a valid calendar date.");
 
-// Goal title validation
 const titleSchema = z
   .string()
   .trim()
   .min(2, "Goal title must contain at least 2 characters.")
   .max(100, "Goal title cannot exceed 100 characters.");
 
-// Description validation
 const descriptionSchema = z
   .string()
   .trim()
   .max(500, "Description cannot exceed 500 characters.");
 
-// Icon validation
 const iconSchema = z
   .string()
   .trim()
@@ -62,15 +56,12 @@ const iconSchema = z
     "Icon must contain only lowercase letters, numbers and hyphens.",
   );
 
-// HEX color validation
 const colorSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Please provide a valid hexadecimal color.");
 
-// Allowed goal statuses
 const statusSchema = z.enum(["active", "completed", "archived"]);
 
-// CREATE FINANCIAL GOAL
 const createFinancialGoalSchema = z.object({
   body: z
     .object({
@@ -87,7 +78,6 @@ const createFinancialGoalSchema = z.object({
   params: z.object({}).strict(),
 });
 
-// GET FINANCIAL GOALS
 const getFinancialGoalsSchema = z.object({
   body: z.object({}).strict(),
 
@@ -100,7 +90,6 @@ const getFinancialGoalsSchema = z.object({
   params: z.object({}).strict(),
 });
 
-// GET SINGLE FINANCIAL GOAL
 const getFinancialGoalByIdSchema = z.object({
   body: z.object({}).strict(),
   query: z.object({}).strict(),
@@ -112,7 +101,6 @@ const getFinancialGoalByIdSchema = z.object({
     .strict(),
 });
 
-// UPDATE FINANCIAL GOAL
 const updateFinancialGoalSchema = z.object({
   body: z
     .object({
@@ -138,8 +126,11 @@ const updateFinancialGoalSchema = z.object({
     .strict(),
 });
 
-// ARCHIVE FINANCIAL GOAL
 const archiveFinancialGoalSchema = getFinancialGoalByIdSchema;
+
+const restoreFinancialGoalSchema = getFinancialGoalByIdSchema;
+
+const permanentlyDeleteFinancialGoalSchema = getFinancialGoalByIdSchema;
 
 module.exports = {
   createFinancialGoalSchema,
@@ -147,4 +138,6 @@ module.exports = {
   getFinancialGoalByIdSchema,
   updateFinancialGoalSchema,
   archiveFinancialGoalSchema,
+  restoreFinancialGoalSchema,
+  permanentlyDeleteFinancialGoalSchema,
 };

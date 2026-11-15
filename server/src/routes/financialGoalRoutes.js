@@ -12,6 +12,8 @@ const {
   getFinancialGoalByIdController,
   updateFinancialGoalController,
   archiveFinancialGoalController,
+  restoreFinancialGoalController,
+  permanentlyDeleteFinancialGoalController,
 } = require("../controllers/financialGoalController");
 
 const {
@@ -20,19 +22,18 @@ const {
   getFinancialGoalByIdSchema,
   updateFinancialGoalSchema,
   archiveFinancialGoalSchema,
+  restoreFinancialGoalSchema,
+  permanentlyDeleteFinancialGoalSchema,
 } = require("../validators/financialGoalValidator");
 
-// All financial goal routes require authentication.
 router.use(protect);
 
-// GET /api/financial-goals
 router.get(
   "/",
   validateRequest(getFinancialGoalsSchema),
   getFinancialGoalsController,
 );
 
-// POST /api/financial-goals
 router.post(
   "/",
   validateRequest(createFinancialGoalSchema),
@@ -41,21 +42,30 @@ router.post(
 
 router.use("/:id/contributions", goalContributionRoutes);
 
-// GET /api/financial-goals/:id
+router.patch(
+  "/:id/restore",
+  validateRequest(restoreFinancialGoalSchema),
+  restoreFinancialGoalController,
+);
+
+router.delete(
+  "/:id/permanent",
+  validateRequest(permanentlyDeleteFinancialGoalSchema),
+  permanentlyDeleteFinancialGoalController,
+);
+
 router.get(
   "/:id",
   validateRequest(getFinancialGoalByIdSchema),
   getFinancialGoalByIdController,
 );
 
-// PATCH /api/financial-goals/:id
 router.patch(
   "/:id",
   validateRequest(updateFinancialGoalSchema),
   updateFinancialGoalController,
 );
 
-// DELETE /api/financial-goals/:id
 router.delete(
   "/:id",
   validateRequest(archiveFinancialGoalSchema),
