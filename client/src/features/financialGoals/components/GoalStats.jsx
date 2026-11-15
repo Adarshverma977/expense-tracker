@@ -6,19 +6,33 @@ import {
   CircleCheck,
 } from "lucide-react";
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+const numberFormatter = new Intl.NumberFormat("en-IN");
+
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
+const getSafeNumber = (value) => {
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
 };
 
-const GoalStats = ({ stats }) => {
+const formatCurrency = (amount) => {
+  return currencyFormatter.format(getSafeNumber(amount));
+};
+
+const formatNumber = (value) => {
+  return numberFormatter.format(getSafeNumber(value));
+};
+
+const GoalStats = ({ stats = {} }) => {
   const statItems = [
     {
       label: "Total Goals",
-      value: stats.totalGoals,
+      value: formatNumber(stats.totalGoals),
       description: "Your financial milestones",
       icon: Target,
       color: "green",
@@ -32,14 +46,14 @@ const GoalStats = ({ stats }) => {
     },
     {
       label: "Active Goals",
-      value: stats.activeGoals,
+      value: formatNumber(stats.activeGoals),
       description: "Goals you're working towards",
       icon: TrendingUp,
       color: "orange",
     },
     {
       label: "Completed Goals",
-      value: stats.completedGoals,
+      value: formatNumber(stats.completedGoals),
       description: "Milestones achieved",
       icon: CircleCheck,
       color: "purple",
@@ -54,7 +68,7 @@ const GoalStats = ({ stats }) => {
         return (
           <div className="goal-stat-card" key={item.label}>
             <div className={`goal-stat-icon ${item.color}`}>
-              <Icon size={20} />
+              <Icon size={20} strokeWidth={2} />
             </div>
 
             <span>{item.label}</span>

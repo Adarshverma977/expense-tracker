@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -12,6 +13,20 @@ const initialValues = {
   note: "",
 };
 
+const amountPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+const MAX_AMOUNT = 999999999999.99;
+
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const getSafeNumber = (value) => {
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
 const ContributionForm = ({
   onSubmit,
   onCancel,
@@ -22,8 +37,7 @@ const ContributionForm = ({
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
 
-  const availableBalance = Number(savedAmount || 0);
-
+  const availableBalance = Math.max(0, getSafeNumber(savedAmount));
   const isDeposit = formData.type === "deposit";
 
   const handleChange = (event) => {
@@ -43,6 +57,8 @@ const ContributionForm = ({
   };
 
   const handleTypeChange = (type) => {
+    if (loading || !["deposit", "withdrawal"].includes(type)) return;
+
     setFormData((previous) => ({
       ...previous,
       type,
@@ -58,19 +74,23 @@ const ContributionForm = ({
     const amount = formData.amount.trim();
     const note = formData.note.trim();
 
-    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
+    if (!amountPattern.test(amount)) {
       nextErrors.amount =
         "Enter a valid amount with up to 2 decimal places.";
-    } else if (Number(amount) <= 0) {
-      nextErrors.amount = "Amount must be greater than zero.";
-    } else if (Number(amount) > 999999999999.99) {
-      nextErrors.amount = "Amount is too large.";
-    } else if (
-      formData.type === "withdrawal" &&
-      Number(amount) > availableBalance
-    ) {
-      nextErrors.amount =
-        "Withdrawal amount cannot exceed your saved balance.";
+    } else {
+      const numericAmount = Number(amount);
+
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        nextErrors.amount = "Amount must be greater than zero.";
+      } else if (numericAmount > MAX_AMOUNT) {
+        nextErrors.amount = "Amount is too large.";
+      } else if (
+        formData.type === "withdrawal" &&
+        numericAmount > availableBalance
+      ) {
+        nextErrors.amount =
+          "Withdrawal amount cannot exceed your saved balance.";
+      }
     }
 
     if (note.length > 300) {
@@ -100,15 +120,18 @@ const ContributionForm = ({
       setErrors({});
     } catch (error) {
       setSubmitError(
-        error.response?.data?.message ||
-        error.message ||
+        error?.response?.data?.message ||
+        error?.message ||
         "Unable to save contribution. Please try again."
       );
     }
   };
 
   return (
-    <form className="goal-form contribution-form" onSubmit={handleSubmit}>
+    <form
+      className="goal-form contribution-form"
+      onSubmit={handleSubmit}
+    >
       <div className="goal-form-field">
         <label>Contribution type</label>
 
@@ -147,28 +170,33 @@ const ContributionForm = ({
 
         <input
           id="contribution-amount"
-          type="number"
+          type="text"
+          inputMode="decimal"
           name="amount"
           value={formData.amount}
           onChange={handleChange}
           placeholder="Enter amount"
-          min="0.01"
-          max="999999999999.99"
-          step="0.01"
+          maxLength={15}
           required
           disabled={loading}
+          aria-invalid={Boolean(errors.amount)}
+          aria-describedby={
+            errors.amount ? "contribution-amount-error" : undefined
+          }
         />
 
         {errors.amount && (
-          <span className="goal-form-error">{errors.amount}</span>
+          <span
+            id="contribution-amount-error"
+            className="goal-form-error"
+          >
+            {errors.amount}
+          </span>
         )}
 
         <span className="goal-form-hint">
           Current saved balance: ₹
-          {availableBalance.toLocaleString("en-IN", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {currencyFormatter.format(availableBalance)}
         </span>
       </div>
 
@@ -190,10 +218,19 @@ const ContributionForm = ({
           maxLength={300}
           rows={3}
           disabled={loading}
+          aria-invalid={Boolean(errors.note)}
+          aria-describedby={
+            errors.note ? "contribution-note-error" : undefined
+          }
         />
 
         {errors.note && (
-          <span className="goal-form-error">{errors.note}</span>
+          <span
+            id="contribution-note-error"
+            className="goal-form-error"
+          >
+            {errors.note}
+          </span>
         )}
       </div>
 

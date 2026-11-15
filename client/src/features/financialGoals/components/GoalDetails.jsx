@@ -1,5 +1,6 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import {
   X,
   Target,
@@ -11,12 +12,16 @@ import {
   Pencil,
   Archive,
   PlusCircle,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 
 import {
   getFinancialGoalById,
   updateFinancialGoal,
   archiveFinancialGoal,
+  restoreFinancialGoal,
+  permanentlyDeleteFinancialGoal,
   createGoalContribution,
 } from "../financialGoalService";
 
@@ -25,14 +30,20 @@ import GoalModal from "./GoalModal";
 import ContributionForm from "./ContributionForm";
 import ContributionHistory from "./ContributionHistory";
 
-const formatCurrency = (amount) => {
-  const value = Number(amount || 0);
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
 
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+const getSafeNumber = (value) => {
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const formatCurrency = (amount) => {
+  return currencyFormatter.format(getSafeNumber(amount));
 };
 
 const formatDate = (date) => {
@@ -51,6 +62,20 @@ const formatDate = (date) => {
   });
 };
 
+const getErrorMessage = (err, fallback) => {
+  const message = err?.response?.data?.message;
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (typeof err?.message === "string" && err.message.trim()) {
+    return err.message;
+  }
+
+  return fallback;
+};
+
 const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
   const [goal, setGoal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -60,40 +85,79 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
   const [updatingGoal, setUpdatingGoal] = useState(false);
 
   const [showContributionForm, setShowContributionForm] = useState(false);
-  const [submittingContribution, setSubmittingContribution] =
-    useState(false);
+  const [submittingContribution, setSubmittingContribution] = useState(false);
 
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
-  const [showArchiveConfirmation, setShowArchiveConfirmation] =
-    useState(false);
-
+  const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [archivingGoal, setArchivingGoal] = useState(false);
+
+  const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false);
+  const [restoringGoal, setRestoringGoal] = useState(false);
+
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingGoal, setDeletingGoal] = useState(false);
+
   const [actionError, setActionError] = useState("");
 
+  const requestIdRef = useRef(0);
+
+  const isActionInProgress =
+    updatingGoal ||
+    archivingGoal ||
+    submittingContribution ||
+    restoringGoal ||
+    deletingGoal;
+
   const fetchGoalDetails = useCallback(async () => {
+    if (!goalId) {
+      setGoal(null);
+      setError("Unable to identify this financial goal.");
+      setLoading(false);
+      return;
+    }
+
+    const requestId = ++requestIdRef.current;
+
     try {
       setLoading(true);
       setError("");
 
       const response = await getFinancialGoalById(goalId);
+      const fetchedGoal = response?.data?.goal;
 
-      setGoal(response?.data?.goal || null);
+      if (requestId !== requestIdRef.current) return;
+
+      if (!fetchedGoal || typeof fetchedGoal !== "object") {
+        setGoal(null);
+        setError("Goal details could not be found.");
+        return;
+      }
+
+      setGoal(fetchedGoal);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
+
       setError(
-        err.response?.data?.message ||
-        "Unable to load goal details. Please try again."
+        getErrorMessage(
+          err,
+          "Unable to load goal details. Please try again.",
+        ),
       );
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [goalId]);
 
   useEffect(() => {
-    if (goalId) {
-      fetchGoalDetails();
-    }
-  }, [goalId, fetchGoalDetails]);
+    fetchGoalDetails();
+
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [fetchGoalDetails]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -102,15 +166,15 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
       if (
         isEditModalOpen ||
         showArchiveConfirmation ||
+        showRestoreConfirmation ||
+        showDeleteConfirmation ||
         showContributionForm ||
-        submittingContribution ||
-        archivingGoal ||
-        updatingGoal
+        isActionInProgress
       ) {
         return;
       }
 
-      onClose();
+      onClose?.();
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -122,10 +186,10 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
     onClose,
     isEditModalOpen,
     showArchiveConfirmation,
+    showRestoreConfirmation,
+    showDeleteConfirmation,
     showContributionForm,
-    submittingContribution,
-    archivingGoal,
-    updatingGoal,
+    isActionInProgress,
   ]);
 
   const handleUpdateGoal = async (goalData) => {
@@ -144,9 +208,13 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
       }
     } catch (err) {
       setActionError(
-        err.response?.data?.message ||
-        "Unable to update this financial goal. Please try again."
+        getErrorMessage(
+          err,
+          "Unable to update this financial goal. Please try again.",
+        ),
       );
+
+      throw err;
     } finally {
       setUpdatingGoal(false);
     }
@@ -160,7 +228,6 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
       await createGoalContribution(goalId, contributionData);
 
       setShowContributionForm(false);
-
       setHistoryRefreshKey((previous) => previous + 1);
 
       await fetchGoalDetails();
@@ -168,8 +235,6 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
       if (onGoalUpdated) {
         await onGoalUpdated();
       }
-    } catch (err) {
-      throw err;
     } finally {
       setSubmittingContribution(false);
     }
@@ -183,34 +248,99 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
       await archiveFinancialGoal(goalId);
 
       setShowArchiveConfirmation(false);
-      onClose();
+      onClose?.();
 
       if (onGoalUpdated) {
-        try {
-          await onGoalUpdated();
-        } catch (refreshError) {
-          console.error(
-            "Unable to refresh financial goals:",
-            refreshError
-          );
-        }
+        await onGoalUpdated();
       }
     } catch (err) {
       setActionError(
-        err.response?.data?.message ||
-        "Unable to archive this financial goal. Please try again."
+        getErrorMessage(
+          err,
+          "Unable to archive this financial goal. Please try again.",
+        ),
       );
     } finally {
       setArchivingGoal(false);
     }
   };
 
-  const progress = Math.min(
-    100,
-    Math.max(0, Number(goal?.progressPercentage || 0))
-  );
+  const handleRestoreGoal = async () => {
+    try {
+      setRestoringGoal(true);
+      setActionError("");
 
-  const isCompleted = goal?.status === "completed";
+      await restoreFinancialGoal(goalId);
+
+      setShowRestoreConfirmation(false);
+
+      await fetchGoalDetails();
+
+      if (onGoalUpdated) {
+        await onGoalUpdated();
+      }
+    } catch (err) {
+      setActionError(
+        getErrorMessage(
+          err,
+          "Unable to restore this financial goal. Please try again.",
+        ),
+      );
+    } finally {
+      setRestoringGoal(false);
+    }
+  };
+
+  const handlePermanentlyDeleteGoal = async () => {
+    try {
+      setDeletingGoal(true);
+      setActionError("");
+
+      await permanentlyDeleteFinancialGoal(goalId);
+
+      setShowDeleteConfirmation(false);
+      onClose?.();
+
+      if (onGoalUpdated) {
+        await onGoalUpdated();
+      }
+    } catch (err) {
+      setActionError(
+        getErrorMessage(
+          err,
+          "Unable to permanently delete this financial goal. Please try again.",
+        ),
+      );
+    } finally {
+      setDeletingGoal(false);
+    }
+  };
+
+  const savedAmount = getSafeNumber(goal?.savedAmount);
+  const targetAmount = getSafeNumber(goal?.targetAmount);
+
+  const calculatedProgress =
+    targetAmount > 0
+      ? (savedAmount / targetAmount) * 100
+      : 0;
+
+  const progressValue =
+    goal?.progressPercentage !== undefined &&
+      goal?.progressPercentage !== null
+      ? getSafeNumber(goal.progressPercentage)
+      : calculatedProgress;
+
+  const progress = Math.min(100, Math.max(0, progressValue));
+
+  const remainingAmount =
+    goal?.remainingAmount !== undefined &&
+      goal?.remainingAmount !== null
+      ? Math.max(0, getSafeNumber(goal.remainingAmount))
+      : Math.max(0, targetAmount - savedAmount);
+
+  const isCompleted =
+    goal?.status === "completed" || Boolean(goal?.isCompleted);
+
   const isArchived = goal?.status === "archived";
 
   const statusLabel = isArchived
@@ -234,12 +364,12 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
             event.target === event.currentTarget &&
             !isEditModalOpen &&
             !showArchiveConfirmation &&
+            !showRestoreConfirmation &&
+            !showDeleteConfirmation &&
             !showContributionForm &&
-            !submittingContribution &&
-            !archivingGoal &&
-            !updatingGoal
+            !isActionInProgress
           ) {
-            onClose();
+            onClose?.();
           }
         }}
       >
@@ -263,23 +393,19 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
               className="goal-details-close"
               onClick={onClose}
               aria-label="Close goal details"
-              disabled={
-                updatingGoal ||
-                archivingGoal ||
-                submittingContribution
-              }
+              disabled={isActionInProgress}
             >
               <X size={19} />
             </button>
           </header>
 
           {loading ? (
-            <div className="goal-details-loading">
+            <div className="goal-details-loading" aria-live="polite">
               <div className="goals-loader" />
               <p>Loading goal details...</p>
             </div>
           ) : error ? (
-            <div className="goal-details-error">
+            <div className="goal-details-error" role="alert">
               <AlertCircle size={25} />
               <p>{error}</p>
 
@@ -300,7 +426,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                 </div>
 
                 <div className="goal-details-title">
-                  <h3>{goal.title}</h3>
+                  <h3>{goal.title || "Untitled Goal"}</h3>
 
                   <p>
                     {goal.description ||
@@ -318,6 +444,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                 <div
                   className="goal-details-action-error"
                   role="alert"
+                  aria-live="assertive"
                 >
                   <AlertCircle size={17} />
                   <span>{actionError}</span>
@@ -337,8 +464,8 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                 />
 
                 <div className="goal-details-progress-footer">
-                  <span>{formatCurrency(goal.savedAmount)} saved</span>
-                  <span>{formatCurrency(goal.targetAmount)} target</span>
+                  <span>{formatCurrency(savedAmount)} saved</span>
+                  <span>{formatCurrency(targetAmount)} target</span>
                 </div>
               </div>
 
@@ -349,7 +476,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                   </div>
 
                   <span>Total saved</span>
-                  <strong>{formatCurrency(goal.savedAmount)}</strong>
+                  <strong>{formatCurrency(savedAmount)}</strong>
                 </div>
 
                 <div className="goal-details-stat">
@@ -358,7 +485,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                   </div>
 
                   <span>Target amount</span>
-                  <strong>{formatCurrency(goal.targetAmount)}</strong>
+                  <strong>{formatCurrency(targetAmount)}</strong>
                 </div>
 
                 <div className="goal-details-stat">
@@ -367,9 +494,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                   </div>
 
                   <span>Remaining amount</span>
-                  <strong>
-                    {formatCurrency(goal.remainingAmount)}
-                  </strong>
+                  <strong>{formatCurrency(remainingAmount)}</strong>
                 </div>
 
                 <div className="goal-details-stat">
@@ -404,11 +529,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                         setActionError("");
                         setShowContributionForm((previous) => !previous);
                       }}
-                      disabled={
-                        updatingGoal ||
-                        archivingGoal ||
-                        submittingContribution
-                      }
+                      disabled={isActionInProgress}
                     >
                       <PlusCircle size={16} />
                       {showContributionForm
@@ -419,7 +540,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
 
                   {showContributionForm && (
                     <ContributionForm
-                      savedAmount={goal.savedAmount}
+                      savedAmount={savedAmount}
                       onSubmit={handleContributionSubmit}
                       onCancel={() => setShowContributionForm(false)}
                       loading={submittingContribution}
@@ -452,9 +573,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                     <button
                       type="button"
                       className="goal-cancel-button"
-                      onClick={() =>
-                        setShowArchiveConfirmation(false)
-                      }
+                      onClick={() => setShowArchiveConfirmation(false)}
                       disabled={archivingGoal}
                     >
                       Cancel
@@ -472,8 +591,82 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                 </div>
               )}
 
+              {showRestoreConfirmation && (
+                <div className="goal-archive-confirmation">
+                  <div className="goal-archive-confirmation-icon">
+                    <RotateCcw size={20} />
+                  </div>
+
+                  <div className="goal-archive-confirmation-content">
+                    <h3>Restore this goal?</h3>
+
+                    <p>
+                      This goal will return to your active goals.
+                      Its current savings and contribution history will remain intact.
+                    </p>
+                  </div>
+
+                  <div className="goal-archive-confirmation-actions">
+                    <button
+                      type="button"
+                      className="goal-cancel-button"
+                      onClick={() => setShowRestoreConfirmation(false)}
+                      disabled={restoringGoal}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="goal-archive-confirm-button"
+                      onClick={handleRestoreGoal}
+                      disabled={restoringGoal}
+                    >
+                      {restoringGoal ? "Restoring..." : "Yes, Restore"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showDeleteConfirmation && (
+                <div className="goal-archive-confirmation">
+                  <div className="goal-archive-confirmation-icon">
+                    <Trash2 size={20} />
+                  </div>
+
+                  <div className="goal-archive-confirmation-content">
+                    <h3>Permanently delete this goal?</h3>
+
+                    <p>
+                      This action cannot be undone. The goal and all its
+                      contribution history will be permanently deleted.
+                    </p>
+                  </div>
+
+                  <div className="goal-archive-confirmation-actions">
+                    <button
+                      type="button"
+                      className="goal-cancel-button"
+                      onClick={() => setShowDeleteConfirmation(false)}
+                      disabled={deletingGoal}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="goal-archive-confirm-button"
+                      onClick={handlePermanentlyDeleteGoal}
+                      disabled={deletingGoal}
+                    >
+                      {deletingGoal ? "Deleting..." : "Delete Permanently"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <footer className="goal-details-footer">
-                {!isArchived && (
+                {!isArchived ? (
                   <div className="goal-details-management-actions">
                     <button
                       type="button"
@@ -482,11 +675,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                         setActionError("");
                         setIsEditModalOpen(true);
                       }}
-                      disabled={
-                        updatingGoal ||
-                        archivingGoal ||
-                        submittingContribution
-                      }
+                      disabled={isActionInProgress}
                     >
                       <Pencil size={15} />
                       Edit Goal
@@ -499,14 +688,38 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                         setActionError("");
                         setShowArchiveConfirmation(true);
                       }}
-                      disabled={
-                        updatingGoal ||
-                        archivingGoal ||
-                        submittingContribution
-                      }
+                      disabled={isActionInProgress}
                     >
                       <Archive size={15} />
                       Archive
+                    </button>
+                  </div>
+                ) : (
+                  <div className="goal-details-management-actions">
+                    <button
+                      type="button"
+                      className="goal-details-edit-button"
+                      onClick={() => {
+                        setActionError("");
+                        setShowRestoreConfirmation(true);
+                      }}
+                      disabled={isActionInProgress}
+                    >
+                      <RotateCcw size={15} />
+                      Restore Goal
+                    </button>
+
+                    <button
+                      type="button"
+                      className="goal-details-archive-button"
+                      onClick={() => {
+                        setActionError("");
+                        setShowDeleteConfirmation(true);
+                      }}
+                      disabled={isActionInProgress}
+                    >
+                      <Trash2 size={15} />
+                      Delete Permanently
                     </button>
                   </div>
                 )}
@@ -515,11 +728,7 @@ const GoalDetails = ({ goalId, onClose, onGoalUpdated }) => {
                   type="button"
                   className="goal-details-done-button"
                   onClick={onClose}
-                  disabled={
-                    updatingGoal ||
-                    archivingGoal ||
-                    submittingContribution
-                  }
+                  disabled={isActionInProgress}
                 >
                   Close
                 </button>

@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -11,6 +12,10 @@ import {
   RefreshCw,
   AlertCircle,
   Plus,
+  Archive,
+  CircleCheck,
+  Activity,
+  Layers3,
 } from "lucide-react";
 
 import {
@@ -26,54 +31,143 @@ import GoalDetails from "./components/GoalDetails";
 
 import "./FinancialGoalsPage.css";
 
+const getErrorMessage = (error, fallback) => {
+  const message = error?.response?.data?.message;
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+const getSafeAmount = (value) => {
+  const amount = Number(value);
+
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+};
+
+const tabs = [
+  {
+    id: "all",
+    label: "All Goals",
+    icon: Layers3,
+  },
+  {
+    id: "active",
+    label: "Active",
+    icon: Activity,
+  },
+  {
+    id: "completed",
+    label: "Completed",
+    icon: CircleCheck,
+  },
+  {
+    id: "archived",
+    label: "Archived",
+    icon: Archive,
+  },
+];
+
 const FinancialGoalsPage = () => {
   const [goals, setGoals] = useState([]);
+  const [archivedGoals, setArchivedGoals] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [archivedError, setArchivedError] = useState("");
 
-  // Selected Goal Details
+  const [activeTab, setActiveTab] = useState("all");
+
   const [selectedGoalId, setSelectedGoalId] = useState(null);
-
-  // Create Goal Modal
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [creatingGoal, setCreatingGoal] = useState(false);
 
-  const [actionError, setActionError] = useState("");
-
-  // ========================================
-  // FETCH FINANCIAL GOALS
-  // ========================================
+  const requestIdRef = useRef(0);
 
   const fetchGoals = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
+    const requestId = ++requestIdRef.current;
 
-      const response = await getFinancialGoals();
+    setLoading(true);
+    setError("");
+    setArchivedError("");
 
-      const fetchedGoals = response?.data?.goals;
+    const [currentResult, archivedResult] = await Promise.allSettled([
+      getFinancialGoals(),
+      getFinancialGoals({ status: "archived" }),
+    ]);
 
-      setGoals(
-        Array.isArray(fetchedGoals) ? fetchedGoals : [],
-      );
-    } catch (err) {
+    if (requestId !== requestIdRef.current) return;
+
+    if (currentResult.status === "fulfilled") {
+      const fetchedGoals = currentResult.value?.data?.goals;
+
+      if (Array.isArray(fetchedGoals)) {
+        setGoals(
+          fetchedGoals.filter(
+            (goal) =>
+              goal &&
+              typeof goal === "object" &&
+              typeof goal._id === "string" &&
+              ["active", "completed"].includes(goal.status),
+          ),
+        );
+      } else {
+        setError("Unexpected financial goals response from server.");
+      }
+    } else {
       setError(
-        err.response?.data?.message ||
-        "Unable to load your financial goals. Please try again.",
+        getErrorMessage(
+          currentResult.reason,
+          "Unable to load your financial goals. Please try again.",
+        ),
       );
-    } finally {
+    }
+
+    if (archivedResult.status === "fulfilled") {
+      const fetchedArchivedGoals = archivedResult.value?.data?.goals;
+
+      if (Array.isArray(fetchedArchivedGoals)) {
+        setArchivedGoals(
+          fetchedArchivedGoals.filter(
+            (goal) =>
+              goal &&
+              typeof goal === "object" &&
+              typeof goal._id === "string" &&
+              goal.status === "archived",
+          ),
+        );
+      } else {
+        setArchivedError(
+          "Unexpected archived goals response from server.",
+        );
+      }
+    } else {
+      setArchivedError(
+        getErrorMessage(
+          archivedResult.reason,
+          "Unable to load archived goals. Please try again.",
+        ),
+      );
+    }
+
+    if (requestId === requestIdRef.current) {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchGoals();
-  }, [fetchGoals]);
 
-  // ========================================
-  // DASHBOARD STATISTICS
-  // ========================================
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [fetchGoals]);
 
   const stats = useMemo(() => {
     const activeGoals = goals.filter(
@@ -85,14 +179,12 @@ const FinancialGoalsPage = () => {
     );
 
     const totalSaved = goals.reduce(
-      (total, goal) =>
-        total + Number(goal.savedAmount || 0),
+      (total, goal) => total + getSafeAmount(goal.savedAmount),
       0,
     );
 
     const totalTarget = goals.reduce(
-      (total, goal) =>
-        total + Number(goal.targetAmount || 0),
+      (total, goal) => total + getSafeAmount(goal.targetAmount),
       0,
     );
 
@@ -110,12 +202,38 @@ const FinancialGoalsPage = () => {
     };
   }, [goals]);
 
-  // ========================================
-  // CREATE GOAL MODAL
-  // ========================================
+  const visibleGoals = useMemo(() => {
+    if (activeTab === "archived") {
+      return archivedGoals;
+    }
+
+    if (activeTab === "active") {
+      return goals.filter((goal) => goal.status === "active");
+    }
+
+    if (activeTab === "completed") {
+      return goals.filter((goal) => goal.status === "completed");
+    }
+
+    return goals;
+  }, [activeTab, goals, archivedGoals]);
+
+  const tabCounts = useMemo(
+    () => ({
+      all: goals.length,
+      active: stats.activeGoals,
+      completed: stats.completedGoals,
+      archived: archivedGoals.length,
+    }),
+    [
+      goals.length,
+      stats.activeGoals,
+      stats.completedGoals,
+      archivedGoals.length,
+    ],
+  );
 
   const handleOpenGoalModal = () => {
-    setActionError("");
     setIsGoalModalOpen(true);
   };
 
@@ -123,36 +241,32 @@ const FinancialGoalsPage = () => {
     if (creatingGoal) return;
 
     setIsGoalModalOpen(false);
-    setActionError("");
   };
 
-  // ========================================
-  // CREATE FINANCIAL GOAL
-  // ========================================
-
   const handleCreateGoal = async (goalData) => {
-    try {
-      setCreatingGoal(true);
-      setActionError("");
+    if (creatingGoal) return;
 
+    setCreatingGoal(true);
+
+    try {
       await createFinancialGoal(goalData);
 
       setIsGoalModalOpen(false);
+      setActiveTab("all");
 
       await fetchGoals();
     } catch (err) {
-      setActionError(
-        err.response?.data?.message ||
-        "Unable to create your financial goal. Please try again.",
+      throw new Error(
+        getErrorMessage(
+          err,
+          "Unable to create your financial goal. Please try again.",
+        ),
+        { cause: err },
       );
     } finally {
       setCreatingGoal(false);
     }
   };
-
-  // ========================================
-  // OPEN GOAL DETAILS
-  // ========================================
 
   const handleOpenGoalDetails = (goalId) => {
     if (!goalId) return;
@@ -160,23 +274,53 @@ const FinancialGoalsPage = () => {
     setSelectedGoalId(goalId);
   };
 
-  // ========================================
-  // CLOSE GOAL DETAILS
-  // ========================================
-
   const handleCloseGoalDetails = () => {
     setSelectedGoalId(null);
   };
 
-  // ========================================
-  // RENDER
-  // ========================================
+  const currentTabError =
+    activeTab === "archived" ? archivedError : error;
+
+  const isArchivedTab = activeTab === "archived";
+
+  const currentTabCount = visibleGoals.length;
+
+  const emptyStateContent = {
+    all: {
+      title: "Your financial journey starts here",
+      description:
+        "You haven't created any financial goals yet. Start by defining something you want to save for.",
+      icon: Target,
+      action: true,
+    },
+    active: {
+      title: "No active goals",
+      description:
+        "You don't have any active financial goals right now. Create a new goal to start your savings journey.",
+      icon: Activity,
+      action: true,
+    },
+    completed: {
+      title: "No completed goals yet",
+      description:
+        "Your completed financial milestones will appear here. Keep working towards your savings targets.",
+      icon: CircleCheck,
+      action: false,
+    },
+    archived: {
+      title: "No archived goals",
+      description:
+        "Goals you archive will appear here. You can restore them anytime or permanently delete them.",
+      icon: Archive,
+      action: false,
+    },
+  };
+
+  const emptyState = emptyStateContent[activeTab];
+  const EmptyIcon = emptyState.icon;
 
   return (
     <div className="financial-goals-page">
-
-      {/* Page Heading */}
-
       <div className="financial-goals-heading">
         <div>
           <span className="financial-goals-eyebrow">
@@ -191,9 +335,6 @@ const FinancialGoalsPage = () => {
         </div>
 
         <div className="financial-goals-actions">
-
-          {/* Refresh */}
-
           <button
             type="button"
             className="goals-refresh-button"
@@ -204,64 +345,48 @@ const FinancialGoalsPage = () => {
               size={16}
               className={loading ? "refresh-spinning" : ""}
             />
-
             Refresh
           </button>
-
-          {/* Create Goal */}
 
           <button
             type="button"
             className="create-goal-button"
             onClick={handleOpenGoalModal}
+            disabled={creatingGoal}
           >
             <Plus size={17} />
             Create Goal
           </button>
-
         </div>
       </div>
 
-      {/* Goal Creation API Error */}
-
-      {actionError && (
-        <div className="goal-action-error" role="alert">
-          <AlertCircle size={17} />
-          <span>{actionError}</span>
-        </div>
-      )}
-
-      {/* Statistics */}
-
       <GoalStats stats={stats} />
 
-      {/* Overall Progress */}
+      {!loading &&
+        !error &&
+        goals.length > 0 &&
+        !isArchivedTab && (
+          <section className="overall-goal-progress">
+            <div className="overall-progress-heading">
+              <div>
+                <span>YOUR SAVINGS JOURNEY</span>
+                <h3>Overall progress</h3>
+              </div>
 
-      {!loading && !error && goals.length > 0 && (
-        <section className="overall-goal-progress">
-          <div className="overall-progress-heading">
-            <div>
-              <span>YOUR SAVINGS JOURNEY</span>
-              <h3>Overall progress</h3>
+              <strong>
+                {stats.overallProgress.toFixed(1)}%
+              </strong>
             </div>
 
-            <strong>
-              {stats.overallProgress.toFixed(1)}%
-            </strong>
-          </div>
-
-          <GoalProgress
-            percentage={stats.overallProgress}
-            variant="overall"
-            label="Overall savings progress"
-          />
-        </section>
-      )}
-
-      {/* Goals Section */}
+            <GoalProgress
+              percentage={stats.overallProgress}
+              variant="overall"
+              label="Overall savings progress"
+            />
+          </section>
+        )}
 
       <section className="goals-list-section">
-
         <div className="goals-list-heading">
           <div>
             <h3>Your goals</h3>
@@ -272,82 +397,96 @@ const FinancialGoalsPage = () => {
           </div>
 
           <span className="goals-count">
-            {stats.totalGoals}{" "}
-            {stats.totalGoals === 1 ? "Goal" : "Goals"}
+            {currentTabCount}{" "}
+            {currentTabCount === 1 ? "Goal" : "Goals"}
           </span>
         </div>
 
-        {/* Loading State */}
+        <div
+          className="financial-goals-tabs"
+          role="tablist"
+          aria-label="Filter financial goals"
+        >
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon;
+            const isSelected = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={`financial-goals-tab ${isSelected ? "active" : ""
+                  }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <TabIcon size={16} />
+                <span>{tab.label}</span>
+                <span className="financial-goals-tab-count">
+                  {tabCounts[tab.id]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         {loading ? (
-          <div className="goals-loading">
+          <div
+            className="goals-loading"
+            role="status"
+            aria-live="polite"
+          >
             <div className="goals-loader" />
             <p>Loading your financial goals...</p>
           </div>
-
-        ) : error ? (
-
-          /* Error State */
-
-          <div className="goals-error">
+        ) : currentTabError ? (
+          <div className="goals-error" role="alert">
             <AlertCircle size={22} />
 
-            <p>{error}</p>
+            <p>{currentTabError}</p>
 
             <button
               type="button"
               onClick={fetchGoals}
+              disabled={loading}
             >
               Try again
             </button>
           </div>
-
-        ) : goals.length === 0 ? (
-
-          /* Empty State */
-
+        ) : visibleGoals.length === 0 ? (
           <div className="goals-empty-state">
             <div className="goals-empty-icon">
-              <Target size={30} />
+              <EmptyIcon size={30} />
             </div>
 
-            <h3>Your financial journey starts here</h3>
+            <h3>{emptyState.title}</h3>
 
-            <p>
-              You haven't created any financial goals yet.
-              Start by defining something you want to save for.
-            </p>
+            <p>{emptyState.description}</p>
 
-            <button
-              type="button"
-              className="create-goal-button"
-              onClick={handleOpenGoalModal}
-            >
-              <Plus size={17} />
-              Create Your First Goal
-            </button>
+            {emptyState.action && (
+              <button
+                type="button"
+                className="create-goal-button"
+                onClick={handleOpenGoalModal}
+              >
+                <Plus size={17} />
+                Create Goal
+              </button>
+            )}
           </div>
-
         ) : (
-
-          /* Financial Goals Grid */
-
           <div className="financial-goals-grid">
-            {goals.map((goal) => (
+            {visibleGoals.map((goal) => (
               <GoalCard
                 key={goal._id}
                 goal={goal}
-                onClick={() =>
-                  handleOpenGoalDetails(goal._id)
-                }
+                onClick={() => handleOpenGoalDetails(goal._id)}
               />
             ))}
           </div>
         )}
-
       </section>
-
-      {/* Create Goal Modal */}
 
       <GoalModal
         isOpen={isGoalModalOpen}
@@ -357,8 +496,6 @@ const FinancialGoalsPage = () => {
         mode="create"
       />
 
-      {/* Goal Details Modal */}
-
       {selectedGoalId && (
         <GoalDetails
           goalId={selectedGoalId}
@@ -366,7 +503,6 @@ const FinancialGoalsPage = () => {
           onGoalUpdated={fetchGoals}
         />
       )}
-
     </div>
   );
 };

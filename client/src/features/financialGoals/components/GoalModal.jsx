@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   X,
@@ -17,18 +17,64 @@ const GoalModal = ({
   initialGoal = null,
   mode = "create",
 }) => {
+  const modalRef = useRef(null);
   const isEditMode = mode === "edit";
-
-  // ========================================
-  // ESCAPE KEY HANDLING
-  // ========================================
 
   useEffect(() => {
     if (!isOpen) return;
 
+    const previousActiveElement = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    modalRef.current?.focus();
+
     const handleKeyDown = (event) => {
-      if (event.key === "Escape" && !loading) {
-        onClose();
+      if (event.key === "Escape") {
+        if (!loading) {
+          event.preventDefault();
+          onClose?.();
+        }
+
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const modal = modalRef.current;
+
+      if (!modal) return;
+
+      const focusableElements = modal.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+
+      const elements = Array.from(focusableElements).filter(
+        (element) => element.getClientRects().length > 0,
+      );
+
+      if (!elements.length) {
+        event.preventDefault();
+        modal.focus();
+        return;
+      }
+
+      const firstElement = elements[0];
+      const lastElement = elements[elements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (!modal.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+        return;
+      }
+
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
       }
     };
 
@@ -36,8 +82,10 @@ const GoalModal = ({
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousActiveElement?.focus?.();
     };
-  }, [isOpen, onClose, loading]);
+  }, [isOpen, loading, onClose]);
 
   if (!isOpen) return null;
 
@@ -49,21 +97,22 @@ const GoalModal = ({
           event.target === event.currentTarget &&
           !loading
         ) {
-          onClose();
+          onClose?.();
         }
       }}
     >
       <div
+        ref={modalRef}
         className="goal-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="goal-modal-title"
+        aria-describedby="goal-modal-description"
+        aria-busy={loading}
+        tabIndex={-1}
       >
-        {/* Modal Header */}
-
         <div className="goal-modal-header">
           <div className="goal-modal-title-group">
-
             <div className="goal-modal-icon">
               {isEditMode ? (
                 <Pencil size={21} />
@@ -79,13 +128,12 @@ const GoalModal = ({
                   : "Create a financial goal"}
               </h2>
 
-              <p>
+              <p id="goal-modal-description">
                 {isEditMode
                   ? "Update your financial milestone."
                   : "Give your next milestone a clear target."}
               </p>
             </div>
-
           </div>
 
           <button
@@ -99,8 +147,6 @@ const GoalModal = ({
           </button>
         </div>
 
-        {/* Reusable Goal Form */}
-
         <GoalForm
           key={`${mode}-${initialGoal?._id || "new"}`}
           mode={mode}
@@ -109,7 +155,6 @@ const GoalModal = ({
           onCancel={onClose}
           loading={loading}
         />
-
       </div>
     </div>
   );

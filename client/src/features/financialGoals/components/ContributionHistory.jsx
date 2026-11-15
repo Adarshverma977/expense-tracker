@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -12,14 +13,20 @@ import {
 
 import { getGoalContributions } from "../financialGoalService";
 
+const PAGE_LIMIT = 20;
+
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
 const formatAmount = (amount) => {
   const value = Number(amount);
 
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+  return currencyFormatter.format(
+    Number.isFinite(value) ? value : 0
+  );
 };
 
 const formatDate = (date) => {
@@ -38,17 +45,33 @@ const formatDate = (date) => {
   }).format(parsedDate);
 };
 
+const getErrorMessage = (err) => {
+  return (
+    err?.response?.data?.message ||
+    err?.message ||
+    "Unable to load contribution history. Please try again."
+  );
+};
+
+const getDefaultPagination = (currentPage = 1, total = 0) => {
+  const totalPages = Math.ceil(total / PAGE_LIMIT);
+
+  return {
+    page: currentPage,
+    limit: PAGE_LIMIT,
+    total,
+    totalPages,
+    hasNextPage: currentPage < totalPages,
+    hasPreviousPage: currentPage > 1 && currentPage <= totalPages,
+  };
+};
+
 const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
   const [contributions, setContributions] = useState([]);
 
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  });
+  const [pagination, setPagination] = useState(
+    getDefaultPagination()
+  );
 
   const [type, setType] = useState("all");
   const [page, setPage] = useState(1);
@@ -61,7 +84,13 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
     let isActive = true;
 
     const fetchContributions = async () => {
-      if (!goalId) return;
+      if (!goalId) {
+        setContributions([]);
+        setPagination(getDefaultPagination());
+        setError("Unable to identify this financial goal.");
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       setError("");
@@ -69,7 +98,7 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
       try {
         const params = {
           page,
-          limit: 20,
+          limit: PAGE_LIMIT,
           ...(type !== "all" && { type }),
         };
 
@@ -78,28 +107,55 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
         if (!isActive) return;
 
         const result = response?.data;
+        const fetchedContributions = result?.contributions;
 
-        setContributions(result?.contributions || []);
+        if (!Array.isArray(fetchedContributions)) {
+          throw new Error("Invalid contribution history response.");
+        }
 
-        setPagination(
-          result?.pagination || {
-            page: 1,
-            limit: 20,
-            total: 0,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          }
+        const validContributions = fetchedContributions.filter(
+          (contribution) =>
+            contribution &&
+            typeof contribution === "object" &&
+            typeof contribution._id === "string"
         );
+
+        const serverPagination = result?.pagination;
+
+        const total = Number.isFinite(Number(serverPagination?.total))
+          ? Math.max(0, Number(serverPagination.total))
+          : validContributions.length;
+
+        const fallbackPagination = getDefaultPagination(page, total);
+
+        setContributions(validContributions);
+
+        setPagination({
+          ...fallbackPagination,
+          ...(serverPagination && typeof serverPagination === "object"
+            ? serverPagination
+            : {}),
+          page: Number(serverPagination?.page) || page,
+          limit: Number(serverPagination?.limit) || PAGE_LIMIT,
+          total,
+          totalPages:
+            Number(serverPagination?.totalPages) ||
+            fallbackPagination.totalPages,
+          hasNextPage:
+            typeof serverPagination?.hasNextPage === "boolean"
+              ? serverPagination.hasNextPage
+              : fallbackPagination.hasNextPage,
+          hasPreviousPage:
+            typeof serverPagination?.hasPreviousPage === "boolean"
+              ? serverPagination.hasPreviousPage
+              : fallbackPagination.hasPreviousPage,
+        });
       } catch (err) {
         if (!isActive) return;
 
         setContributions([]);
-
-        setError(
-          err.response?.data?.message ||
-          "Unable to load contribution history. Please try again."
-        );
+        setPagination(getDefaultPagination(page));
+        setError(getErrorMessage(err));
       } finally {
         if (isActive) {
           setLoading(false);
@@ -124,13 +180,13 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
   };
 
   const handlePreviousPage = () => {
-    if (pagination.hasPreviousPage) {
+    if (pagination.hasPreviousPage && page > 1 && !loading) {
       setPage((currentPage) => currentPage - 1);
     }
   };
 
   const handleNextPage = () => {
-    if (pagination.hasNextPage) {
+    if (pagination.hasNextPage && !loading) {
       setPage((currentPage) => currentPage + 1);
     }
   };
@@ -166,7 +222,10 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
       </div>
 
       {loading ? (
-        <div className="contribution-history-state">
+        <div
+          className="contribution-history-state"
+          aria-live="polite"
+        >
           <span className="contribution-history-spinner" />
           <p>Loading contribution history...</p>
         </div>
@@ -258,7 +317,7 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
                 <button
                   type="button"
                   onClick={handlePreviousPage}
-                  disabled={!pagination.hasPreviousPage}
+                  disabled={!pagination.hasPreviousPage || loading}
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={18} />
@@ -267,7 +326,7 @@ const ContributionHistory = ({ goalId, refreshKey = 0 }) => {
                 <button
                   type="button"
                   onClick={handleNextPage}
-                  disabled={!pagination.hasNextPage}
+                  disabled={!pagination.hasNextPage || loading}
                   aria-label="Next page"
                 >
                   <ChevronRight size={18} />
