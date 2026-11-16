@@ -2,28 +2,41 @@ const { z } = require("zod");
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
-// Budget amount validation
+const MAX_BUDGET_AMOUNT_MINOR_UNITS = 999999999999999n;
+
+const amountPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+
 const amountSchema = z
   .string()
   .trim()
-  .max(15, "Budget amount is too large.")
+  .max(16, "Budget amount is too large.")
   .regex(
-    /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/,
+    amountPattern,
     "Budget amount must be a valid positive number with at most 2 decimal places.",
   )
-  .refine(
-    (value) => /[1-9]/.test(value),
-    "Budget amount must be greater than zero.",
-  );
+  .refine((value) => {
+    if (!amountPattern.test(value)) return true;
 
-// MongoDB ObjectId validation
+    const [whole, fraction = ""] = value.split(".");
+    const minorUnits = BigInt(whole + fraction.padEnd(2, "0"));
+
+    return minorUnits > 0n;
+  }, "Budget amount must be greater than zero.")
+  .refine((value) => {
+    if (!amountPattern.test(value)) return true;
+
+    const [whole, fraction = ""] = value.split(".");
+    const minorUnits = BigInt(whole + fraction.padEnd(2, "0"));
+
+    return minorUnits <= MAX_BUDGET_AMOUNT_MINOR_UNITS;
+  }, "Budget amount exceeds the maximum allowed limit.");
+
 const categoryIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid category ID.");
 
 const budgetIdSchema = z.string().regex(objectIdRegex, "Invalid budget ID.");
 
-// Query parameter validation
 const monthSchema = z
   .string()
   .regex(/^\d{1,2}$/, "Month must be a valid integer.")
@@ -48,7 +61,6 @@ const yearSchema = z
       .max(9999, "Invalid budget year."),
   );
 
-// CREATE BUDGET
 const createBudgetSchema = z.object({
   body: z
     .object({
@@ -63,7 +75,6 @@ const createBudgetSchema = z.object({
   params: z.object({}).strict(),
 });
 
-// GET MONTHLY BUDGETS
 const getBudgetsSchema = z.object({
   body: z.object({}).strict(),
 
@@ -77,7 +88,6 @@ const getBudgetsSchema = z.object({
   params: z.object({}).strict(),
 });
 
-// GET SINGLE BUDGET
 const getBudgetByIdSchema = z.object({
   body: z.object({}).strict(),
   query: z.object({}).strict(),
@@ -89,7 +99,6 @@ const getBudgetByIdSchema = z.object({
     .strict(),
 });
 
-// UPDATE BUDGET
 const updateBudgetSchema = z.object({
   body: z
     .object({
@@ -106,7 +115,6 @@ const updateBudgetSchema = z.object({
     .strict(),
 });
 
-// DELETE BUDGET
 const deleteBudgetSchema = getBudgetByIdSchema;
 
 module.exports = {

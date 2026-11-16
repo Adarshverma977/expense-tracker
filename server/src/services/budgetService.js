@@ -5,14 +5,39 @@ const Transaction = require("../models/Transaction");
 const Category = require("../models/Category");
 const AppError = require("../utils/AppError");
 
-// India reporting timezone: UTC +05:30.
 const INDIA_UTC_OFFSET_MINUTES = 330;
+const MAX_BUDGET_AMOUNT_MINOR_UNITS = 999999999999999n;
 
-/**
- * Convert a decimal amount into integer paise.
- * Uses BigInt to avoid floating-point precision errors.
- * Supports Decimal128 scientific notation.
- */
+const BUDGET_AMOUNT_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+
+const validateBudgetAmount = (value) => {
+  if (typeof value !== "string") {
+    throw new AppError("A valid budget amount is required.", 400);
+  }
+
+  const amount = value.trim();
+
+  if (!BUDGET_AMOUNT_PATTERN.test(amount)) {
+    throw new AppError(
+      "Budget amount must be a positive number with at most 2 decimal places.",
+      400,
+    );
+  }
+
+  const [whole, fraction = ""] = amount.split(".");
+  const minorUnits = BigInt(whole + fraction.padEnd(2, "0"));
+
+  if (minorUnits <= 0n) {
+    throw new AppError("Budget amount must be greater than zero.", 400);
+  }
+
+  if (minorUnits > MAX_BUDGET_AMOUNT_MINOR_UNITS) {
+    throw new AppError("Budget amount exceeds the maximum allowed limit.", 400);
+  }
+
+  return amount;
+};
+
 const toMinorUnits = (value) => {
   if (value === null || value === undefined) {
     throw new Error("Invalid monetary value received from database.");
@@ -37,10 +62,8 @@ const toMinorUnits = (value) => {
   let digits = `${whole}${fraction}`;
   let scale = fraction.length - exponentValue;
 
-  // Remove unnecessary leading zeros.
   digits = digits.replace(/^0+/, "") || "0";
 
-  // Currency calculations support a maximum of 2 decimal places.
   if (scale > 2) {
     const extraDigits = scale - 2;
 
@@ -70,23 +93,15 @@ const toMinorUnits = (value) => {
   return sign === "-" ? -minorUnits : minorUnits;
 };
 
-/**
- * Convert integer paise into a decimal string.
- */
 const fromMinorUnits = (value) => {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
-
   const whole = absolute / 100n;
   const fraction = (absolute % 100n).toString().padStart(2, "0");
 
   return `${negative ? "-" : ""}${whole}.${fraction}`;
 };
 
-/**
- * Calculate monthly boundaries using Asia/Kolkata timezone.
- * The end date is exclusive.
- */
 const getMonthDateRange = (year, month) => {
   const offsetMilliseconds = INDIA_UTC_OFFSET_MINUTES * 60 * 1000;
 
@@ -97,10 +112,6 @@ const getMonthDateRange = (year, month) => {
   return { startDate, endDate };
 };
 
-/**
- * Validate an active expense category and ownership.
- * Supports both default and user-owned custom categories.
- */
 const validateExpenseCategory = async (userId, categoryId) => {
   if (!mongoose.isValidObjectId(categoryId)) {
     throw new AppError("Invalid category ID.", 400);
@@ -123,10 +134,6 @@ const validateExpenseCategory = async (userId, categoryId) => {
   return category;
 };
 
-/**
- * Ensure every budget has a valid populated category.
- * Prevents crashes caused by dangling category references.
- */
 const ensureBudgetCategoriesExist = (budgets) => {
   const hasMissingCategory = budgets.some((budget) => !budget.category);
 
@@ -138,14 +145,9 @@ const ensureBudgetCategoriesExist = (budgets) => {
   }
 };
 
-/**
- * Format a budget with calculated spending information.
- */
 const formatBudget = (budget, spending = 0n) => {
   const data = budget.toObject ? budget.toObject() : budget;
-
   const budgetAmount = toMinorUnits(data.amount.toString());
-
   const remainingAmount = budgetAmount - spending;
 
   const utilizationPercentage =
@@ -169,9 +171,9 @@ const formatBudget = (budget, spending = 0n) => {
   };
 };
 
-// CREATE BUDGET
 const createBudget = async (userId, budgetData) => {
-  const { category, amount, month, year } = budgetData;
+  const { category, month, year } = budgetData;
+  const amount = validateBudgetAmount(budgetData.amount);
 
   await validateExpenseCategory(userId, category);
 
@@ -197,7 +199,6 @@ const createBudget = async (userId, budgetData) => {
   }
 };
 
-// GET MONTHLY BUDGETS
 const getBudgets = async (userId, filters) => {
   const { month, year } = filters;
 
@@ -229,7 +230,6 @@ const getBudgets = async (userId, filters) => {
 
   const { startDate, endDate } = getMonthDateRange(year, month);
 
-  // Aggregate actual expense transactions for budget categories.
   const spendingResults = await Transaction.aggregate([
     {
       $match: {
@@ -264,7 +264,6 @@ const getBudgets = async (userId, filters) => {
 
   const formattedBudgets = budgets.map((budget) => {
     const spending = spendingMap.get(budget.category._id.toString()) || 0n;
-
     const budgetAmount = toMinorUnits(budget.amount.toString());
 
     totalBudget += budgetAmount;
@@ -298,7 +297,6 @@ const getBudgets = async (userId, filters) => {
   };
 };
 
-// GET SINGLE BUDGET
 const getBudgetById = async (userId, budgetId) => {
   if (!mongoose.isValidObjectId(budgetId)) {
     throw new AppError("Invalid budget ID.", 400);
@@ -346,15 +344,12 @@ const getBudgetById = async (userId, budgetId) => {
   return formatBudget(budget, spending);
 };
 
-// UPDATE BUDGET
 const updateBudget = async (userId, budgetId, updates) => {
   if (!mongoose.isValidObjectId(budgetId)) {
     throw new AppError("Invalid budget ID.", 400);
   }
 
-  if (!updates || typeof updates.amount !== "string") {
-    throw new AppError("A valid budget amount is required.", 400);
-  }
+  const amount = validateBudgetAmount(updates?.amount);
 
   const budget = await Budget.findOne({
     _id: budgetId,
@@ -365,14 +360,13 @@ const updateBudget = async (userId, budgetId, updates) => {
     throw new AppError("Budget not found.", 404);
   }
 
-  budget.amount = mongoose.Types.Decimal128.fromString(updates.amount);
+  budget.amount = mongoose.Types.Decimal128.fromString(amount);
 
   await budget.save();
 
   return getBudgetById(userId, budgetId);
 };
 
-// DELETE BUDGET
 const deleteBudget = async (userId, budgetId) => {
   if (!mongoose.isValidObjectId(budgetId)) {
     throw new AppError("Invalid budget ID.", 400);

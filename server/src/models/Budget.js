@@ -1,7 +1,9 @@
 const mongoose = require("mongoose");
 
+const MAX_BUDGET_AMOUNT_MINOR_UNITS = 999999999999999n;
+
 const isValidBudgetAmount = (value) => {
-  if (!value) return false;
+  if (value === null || value === undefined) return false;
 
   const amountString = value.toString().trim();
 
@@ -13,19 +15,19 @@ const isValidBudgetAmount = (value) => {
 
   const [, sign, whole, fraction = "", exponent = "0"] = match;
 
-  // Budget amounts must be positive.
   if (sign === "-") return false;
 
-  let digits = `${whole}${fraction}`;
-  let scale = fraction.length - Number(exponent);
+  const exponentValue = Number(exponent);
 
-  // Reject zero amounts.
+  if (!Number.isSafeInteger(exponentValue)) return false;
+
+  let digits = `${whole}${fraction}`;
+  let scale = fraction.length - exponentValue;
+
   if (!/[1-9]/.test(digits)) return false;
 
-  // Remove unnecessary leading zeros.
   digits = digits.replace(/^0+/, "") || "0";
 
-  // Currency supports a maximum of two decimal places.
   if (scale > 2) {
     const extraDigits = scale - 2;
 
@@ -39,37 +41,48 @@ const isValidBudgetAmount = (value) => {
     scale = 2;
   }
 
-  return true;
+  if (scale < 2) {
+    const additionalZeros = 2 - scale;
+
+    if (digits.length + additionalZeros > 15) return false;
+
+    digits += "0".repeat(additionalZeros);
+  }
+
+  if (digits.length > 15) return false;
+
+  const amountInMinorUnits = BigInt(digits);
+
+  return (
+    amountInMinorUnits > 0n &&
+    amountInMinorUnits <= MAX_BUDGET_AMOUNT_MINOR_UNITS
+  );
 };
 
 const budgetSchema = new mongoose.Schema(
   {
-    // Budget owner
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Budget user is required"],
     },
 
-    // Expense category
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
       required: [true, "Budget category is required"],
     },
 
-    // Allocated budget amount
     amount: {
       type: mongoose.Schema.Types.Decimal128,
       required: [true, "Budget amount is required"],
       validate: {
         validator: isValidBudgetAmount,
         message:
-          "Budget amount must be positive and have at most 2 decimal places",
+          "Budget amount must be positive, within the maximum limit, and have at most 2 decimal places.",
       },
     },
 
-    // Budget month: 1 to 12
     month: {
       type: Number,
       required: [true, "Budget month is required"],
@@ -81,7 +94,6 @@ const budgetSchema = new mongoose.Schema(
       },
     },
 
-    // Budget year
     year: {
       type: Number,
       required: [true, "Budget year is required"],
@@ -99,8 +111,6 @@ const budgetSchema = new mongoose.Schema(
   },
 );
 
-// Prevent duplicate budgets for the same user,
-// category, month and year.
 budgetSchema.index(
   {
     user: 1,
@@ -114,7 +124,6 @@ budgetSchema.index(
   },
 );
 
-// Efficient monthly budget lookup.
 budgetSchema.index(
   {
     user: 1,
