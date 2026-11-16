@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
-
 const { parse } = require("csv-parse/sync");
 const { stringify } = require("csv-stringify/sync");
 
@@ -26,9 +25,59 @@ const normalizeText = (value) =>
 
 const normalizeAmount = (value) => {
   const amount = String(value).trim();
-  const [whole, decimal = ""] = amount.split(".");
 
-  return `${whole}.${decimal.padEnd(2, "0")}`;
+  const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+
+  if (!match) {
+    throw new Error("Invalid monetary value.");
+  }
+
+  const [, sign, whole, fraction = "", exponent = "0"] = match;
+
+  const exponentValue = Number(exponent);
+
+  if (!Number.isSafeInteger(exponentValue)) {
+    throw new Error("Invalid monetary exponent.");
+  }
+
+  let digits = `${whole}${fraction}`;
+  let scale = fraction.length - exponentValue;
+
+  digits = digits.replace(/^0+/, "") || "0";
+
+  if (scale > 2) {
+    const extraDigits = scale - 2;
+
+    if (extraDigits > digits.length) {
+      if (digits !== "0") {
+        throw new Error("Unsupported monetary precision.");
+      }
+
+      digits = "0";
+    } else {
+      if (!digits.endsWith("0".repeat(extraDigits))) {
+        throw new Error("Unsupported monetary precision.");
+      }
+
+      digits = digits.slice(0, -extraDigits) || "0";
+    }
+
+    scale = 2;
+  }
+
+  if (scale < 2) {
+    const additionalZeros = 2 - scale;
+
+    if (digits.length + additionalZeros > 100) {
+      throw new Error("Monetary value is too large.");
+    }
+
+    digits += "0".repeat(additionalZeros);
+  }
+
+  const minorUnits = BigInt(digits);
+
+  return `${sign === "-" && minorUnits > 0n ? "-" : ""}${minorUnits}`;
 };
 
 const createDuplicateKey = (transaction) => {
@@ -42,7 +91,6 @@ const createDuplicateKey = (transaction) => {
   ].join("|");
 };
 
-// Stable fingerprint used by the MongoDB unique index.
 const createCsvImportKey = (transaction) => {
   const fingerprint = createDuplicateKey(transaction);
 
@@ -78,7 +126,6 @@ const buildDateFilter = (startDate, endDate) => {
     const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(endDate);
 
     if (isDateOnly) {
-      // Date-only values are interpreted as IST midnight.
       dateFilter.$lt = new Date(parsedEndDate.getTime() + 24 * 60 * 60 * 1000);
     } else {
       dateFilter.$lte = parsedEndDate;
@@ -136,8 +183,6 @@ const getWriteErrorMessage = (writeError) => {
   );
 };
 
-// IMPORT TRANSACTIONS
-
 const importTransactions = async (userId, fileBuffer) => {
   if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
     throw new AppError("Please upload a valid CSV file.", 400);
@@ -181,7 +226,6 @@ const importTransactions = async (userId, fileBuffer) => {
 
   const getValue = (row, field) => {
     const index = headerIndex[field];
-
     return index === undefined ? "" : String(row[index] ?? "").trim();
   };
 
@@ -327,7 +371,6 @@ const importTransactions = async (userId, fileBuffer) => {
     .lean();
 
   const existingKeys = new Set(existingTransactions.map(createDuplicateKey));
-
   const transactionsToInsert = [];
 
   for (const item of validRows) {
@@ -384,7 +427,6 @@ const importTransactions = async (userId, fileBuffer) => {
           index < 0 ||
           index >= transactionsToInsert.length
         ) {
-          // Never guess the result when the failed document is unknown.
           throw error;
         }
 
@@ -398,7 +440,6 @@ const importTransactions = async (userId, fileBuffer) => {
         const errorCode = getWriteErrorCode(writeError);
 
         if (errorCode === 11000) {
-          // Concurrent import already inserted this fingerprint.
           duplicateCount += 1;
 
           rowErrors.push({
@@ -433,8 +474,6 @@ const importTransactions = async (userId, fileBuffer) => {
     errors: rowErrors,
   };
 };
-
-// EXPORT TRANSACTIONS
 
 const exportTransactions = async (userId, filters = {}) => {
   const { type, category, startDate, endDate, sort = "newest" } = filters;

@@ -1,5 +1,46 @@
 const mongoose = require("mongoose");
 
+const isValidTransactionAmount = (value) => {
+  if (value === null || value === undefined) return false;
+
+  const amountString = value.toString().trim();
+
+  const match = amountString.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/,
+  );
+
+  if (!match) return false;
+
+  const [, sign, whole, fraction = "", exponent = "0"] = match;
+
+  if (sign === "-") return false;
+
+  const exponentValue = Number(exponent);
+
+  if (!Number.isSafeInteger(exponentValue)) return false;
+
+  let digits = `${whole}${fraction}`;
+  let scale = fraction.length - exponentValue;
+
+  if (!/[1-9]/.test(digits)) return false;
+
+  digits = digits.replace(/^0+/, "") || "0";
+
+  if (scale > 2) {
+    const extraDigits = scale - 2;
+
+    if (extraDigits > digits.length) return false;
+
+    if (!digits.endsWith("0".repeat(extraDigits))) {
+      return false;
+    }
+
+    digits = digits.slice(0, -extraDigits) || "0";
+  }
+
+  return true;
+};
+
 const transactionSchema = new mongoose.Schema(
   {
     user: {
@@ -21,17 +62,7 @@ const transactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Decimal128,
       required: [true, "Transaction amount is required"],
       validate: {
-        validator: function (value) {
-          if (!value) return false;
-
-          const amount = value.toString();
-
-          if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
-            return false;
-          }
-
-          return /[1-9]/.test(amount);
-        },
+        validator: isValidTransactionAmount,
         message: "Amount must be positive and have at most 2 decimal places",
       },
     },
@@ -73,13 +104,11 @@ const transactionSchema = new mongoose.Schema(
       default: "other",
     },
 
-    // Used only for automatically generated recurring transactions.
     recurrenceKey: {
       type: String,
       default: undefined,
     },
 
-    // Used only for preventing duplicate CSV imports.
     csvImportKey: {
       type: String,
       default: undefined,
@@ -91,28 +120,24 @@ const transactionSchema = new mongoose.Schema(
   },
 );
 
-// Efficient user transaction queries and sorting.
 transactionSchema.index({
   user: 1,
   date: -1,
   _id: -1,
 });
 
-// Efficient filtering by transaction type.
 transactionSchema.index({
   user: 1,
   type: 1,
   date: -1,
 });
 
-// Efficient category-based transaction queries.
 transactionSchema.index({
   user: 1,
   category: 1,
   date: -1,
 });
 
-// Prevent duplicate recurring transaction occurrences.
 transactionSchema.index(
   { recurrenceKey: 1 },
   {
@@ -123,7 +148,6 @@ transactionSchema.index(
   },
 );
 
-// Prevent duplicate CSV imports for the same user.
 transactionSchema.index(
   { user: 1, csvImportKey: 1 },
   {

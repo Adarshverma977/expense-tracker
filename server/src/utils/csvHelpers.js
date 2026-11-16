@@ -21,7 +21,6 @@ const normalizeHeader = (header) => {
     .replace(/[\s_-]+/g, "");
 };
 
-// Parse monetary values without floating-point calculations.
 const parseCsvAmount = (value) => {
   const amount = String(value ?? "").trim();
 
@@ -42,7 +41,6 @@ const parseCsvAmount = (value) => {
   return amount;
 };
 
-// Validate a calendar date without JavaScript date normalization.
 const isValidCalendarDate = (year, month, day) => {
   if (month < 1 || month > 12 || day < 1) {
     return false;
@@ -64,7 +62,6 @@ const parseCsvDate = (value) => {
     throw new Error("Transaction date is required.");
   }
 
-  // Accept YYYY-MM-DD as an India calendar date.
   const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
 
   if (dateOnlyMatch) {
@@ -78,13 +75,11 @@ const parseCsvDate = (value) => {
       throw new Error("Invalid transaction date.");
     }
 
-    // IST midnight converted to UTC.
     return new Date(
       Date.UTC(year, month - 1, day) - INDIA_UTC_OFFSET_MINUTES * 60 * 1000,
     );
   }
 
-  // Accept ISO datetime with an explicit timezone.
   const isoDateTime =
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|([+-])(\d{2}):(\d{2}))$/;
 
@@ -133,12 +128,10 @@ const parseCsvDate = (value) => {
       throw new Error("Invalid transaction timezone offset.");
     }
 
-    // RFC 3339 offsets are limited to 14 hours.
     if (offsetHour > 14 || (offsetHour === 14 && offsetMinute !== 0)) {
       throw new Error("Invalid transaction timezone offset.");
     }
 
-    // Reject negative zero offset.
     if (offsetSign === "-" && offsetHour === 0 && offsetMinute === 0) {
       throw new Error("Invalid transaction timezone offset.");
     }
@@ -168,7 +161,6 @@ const normalizePaymentMethod = (value) => {
   return paymentMethod;
 };
 
-// Prevent spreadsheet formula execution.
 const protectCsvFormula = (value) => {
   if (value === null || value === undefined) {
     return "";
@@ -176,7 +168,6 @@ const protectCsvFormula = (value) => {
 
   const text = String(value);
 
-  // Detect formula characters after leading whitespace/control characters.
   if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) {
     return `'${text}`;
   }

@@ -2,23 +2,34 @@ const { z } = require("zod");
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
+const amountPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+
 const amountSchema = z
   .string()
   .trim()
   .max(15, "Amount is too large.")
   .regex(
-    /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/,
+    amountPattern,
     "Amount must be a valid positive number with at most 2 decimal places.",
   )
-  .refine((value) => /[1-9]/.test(value), "Amount must be greater than zero.");
+  .refine((value) => {
+    if (!amountPattern.test(value)) return true;
+
+    const [whole, fraction = ""] = value.split(".");
+    const minorUnits = BigInt(whole + fraction.padEnd(2, "0"));
+
+    return minorUnits > 0n;
+  }, "Amount must be greater than zero.");
 
 const categoryIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid category ID.");
 
-const dateSchema = z.string().datetime({ offset: true });
+const transactionIdSchema = z
+  .string()
+  .regex(objectIdRegex, "Invalid transaction ID.");
 
-// CREATE TRANSACTION
+const dateSchema = z.string().datetime({ offset: true });
 
 const createTransactionSchema = z.object({
   body: z
@@ -45,8 +56,6 @@ const createTransactionSchema = z.object({
   query: z.object({}).strict(),
   params: z.object({}).strict(),
 });
-
-// GET TRANSACTIONS
 
 const getTransactionsSchema = z.object({
   body: z.object({}).strict(),
@@ -82,8 +91,6 @@ const getTransactionsSchema = z.object({
   params: z.object({}).strict(),
 });
 
-// UPDATE TRANSACTION
-
 const updateTransactionSchema = z.object({
   body: z
     .object({
@@ -113,20 +120,18 @@ const updateTransactionSchema = z.object({
 
   params: z
     .object({
-      id: categoryIdSchema,
+      id: transactionIdSchema,
     })
     .strict(),
 });
 
-// DELETE / GET SINGLE TRANSACTION
-
-const transactionIdSchema = z.object({
+const transactionIdParamsSchema = z.object({
   body: z.object({}).strict(),
   query: z.object({}).strict(),
 
   params: z
     .object({
-      id: categoryIdSchema,
+      id: transactionIdSchema,
     })
     .strict(),
 });
@@ -135,5 +140,5 @@ module.exports = {
   createTransactionSchema,
   getTransactionsSchema,
   updateTransactionSchema,
-  transactionIdSchema,
+  transactionIdSchema: transactionIdParamsSchema,
 };

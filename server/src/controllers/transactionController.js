@@ -13,7 +13,6 @@ const {
   exportTransactions,
 } = require("../services/csvTransactionService");
 
-// POST /api/transactions
 const createTransactionController = asyncHandler(async (req, res) => {
   const transaction = await createTransaction(req.user._id, req.body);
 
@@ -26,7 +25,6 @@ const createTransactionController = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/transactions
 const getTransactionsController = asyncHandler(async (req, res) => {
   const result = await getTransactions(req.user._id, req.validatedQuery);
 
@@ -37,7 +35,6 @@ const getTransactionsController = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/transactions/:id
 const getTransactionByIdController = asyncHandler(async (req, res) => {
   const transaction = await getTransactionById(
     req.user._id,
@@ -52,7 +49,6 @@ const getTransactionByIdController = asyncHandler(async (req, res) => {
   });
 });
 
-// PATCH /api/transactions/:id
 const updateTransactionController = asyncHandler(async (req, res) => {
   const transaction = await updateTransaction(
     req.user._id,
@@ -69,7 +65,6 @@ const updateTransactionController = asyncHandler(async (req, res) => {
   });
 });
 
-// DELETE /api/transactions/:id
 const deleteTransactionController = asyncHandler(async (req, res) => {
   const result = await deleteTransaction(req.user._id, req.validatedParams.id);
 
@@ -79,7 +74,6 @@ const deleteTransactionController = asyncHandler(async (req, res) => {
   });
 });
 
-// POST /api/transactions/import
 const importTransactionsController = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({
@@ -97,7 +91,6 @@ const importTransactionsController = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/transactions/export
 const exportTransactionsController = asyncHandler(async (req, res) => {
   const csv = await exportTransactions(req.user._id, req.validatedQuery);
 

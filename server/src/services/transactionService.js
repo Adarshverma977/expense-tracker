@@ -4,6 +4,32 @@ const Transaction = require("../models/Transaction");
 const Category = require("../models/Category");
 const AppError = require("../utils/AppError");
 
+const AMOUNT_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
+
+const validateTransactionAmount = (value) => {
+  if (typeof value !== "string") {
+    throw new AppError("A valid transaction amount is required.", 400);
+  }
+
+  const amount = value.trim();
+
+  if (amount.length > 15 || !AMOUNT_PATTERN.test(amount)) {
+    throw new AppError(
+      "Amount must be a valid positive number with at most 2 decimal places.",
+      400,
+    );
+  }
+
+  const [whole, fraction = ""] = amount.split(".");
+  const minorUnits = BigInt(whole + fraction.padEnd(2, "0"));
+
+  if (minorUnits <= 0n) {
+    throw new AppError("Amount must be greater than zero.", 400);
+  }
+
+  return amount;
+};
+
 const validateCategory = async (userId, categoryId, transactionType) => {
   if (!mongoose.isValidObjectId(categoryId)) {
     throw new AppError("Invalid category ID.", 400);
@@ -31,7 +57,6 @@ const validateCategory = async (userId, categoryId, transactionType) => {
   return category;
 };
 
-// Validate and parse an ISO datetime filter.
 const parseDateFilter = (value, fieldName) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -60,15 +85,17 @@ const formatTransaction = (transaction) => {
 };
 
 const createTransaction = async (userId, transactionData) => {
-  const { title, amount, type, category, description, date, paymentMethod } =
+  const { title, type, category, description, date, paymentMethod } =
     transactionData;
+
+  const amount = validateTransactionAmount(transactionData.amount);
 
   await validateCategory(userId, category, type);
 
   const transaction = await Transaction.create({
     user: userId,
     title,
-    amount,
+    amount: mongoose.Types.Decimal128.fromString(amount),
     type,
     category,
     description,
@@ -201,7 +228,12 @@ const updateTransaction = async (userId, transactionId, updates) => {
 
   allowedFields.forEach((field) => {
     if (updates[field] !== undefined) {
-      transaction[field] = updates[field];
+      transaction[field] =
+        field === "amount"
+          ? mongoose.Types.Decimal128.fromString(
+              validateTransactionAmount(updates[field]),
+            )
+          : updates[field];
     }
   });
 
