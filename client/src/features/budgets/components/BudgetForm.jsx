@@ -1,7 +1,10 @@
 
 import { useEffect, useState } from "react";
-import { LoaderCircle, RefreshCw } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { getCategories } from "../../../services/categoryService";
+
+const MAX_BUDGET_AMOUNT_MINOR_UNITS = 999999999999999n;
+const AMOUNT_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 
 const getCategoryList = (response) => {
   const data = response?.data;
@@ -86,7 +89,7 @@ const BudgetForm = ({
   useEffect(() => {
     setForm({
       category: budget?.category?._id || "",
-      amount: budget?.amount ?? "",
+      amount: budget?.amount?.toString() ?? "",
       month: budget?.month ?? month,
       year: budget?.year ?? year,
     });
@@ -109,8 +112,6 @@ const BudgetForm = ({
     if (isSubmitting) return;
 
     const amount = String(form.amount).trim();
-    const amountPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
-    const numericAmount = Number(amount);
     const selectedMonth = Number(form.month);
     const selectedYear = Number(form.year);
 
@@ -120,13 +121,26 @@ const BudgetForm = ({
     }
 
     if (
-      !amountPattern.test(amount) ||
-      !Number.isFinite(numericAmount) ||
-      numericAmount <= 0 ||
-      numericAmount > 9999999999999.99
+      amount.length > 16 ||
+      !AMOUNT_PATTERN.test(amount)
     ) {
       setError(
         "Enter a valid amount greater than zero with a maximum of 2 decimal places."
+      );
+      return;
+    }
+
+    const [whole, fraction = ""] = amount.split(".");
+    const amountMinorUnits = BigInt(
+      whole + fraction.padEnd(2, "0")
+    );
+
+    if (
+      amountMinorUnits <= 0n ||
+      amountMinorUnits > MAX_BUDGET_AMOUNT_MINOR_UNITS
+    ) {
+      setError(
+        "Enter a valid amount greater than zero within the allowed budget limit."
       );
       return;
     }
@@ -168,7 +182,8 @@ const BudgetForm = ({
   const isSubmitDisabled =
     isSubmitting ||
     isLoadingCategories ||
-    (!budget && (categories.length === 0 || Boolean(categoryError)));
+    (!budget &&
+      (categories.length === 0 || Boolean(categoryError)));
 
   return (
     <form
@@ -185,7 +200,11 @@ const BudgetForm = ({
             onChange={(event) =>
               updateField("category", event.target.value)
             }
-            disabled={isLoadingCategories || Boolean(categoryError) || isSubmitting}
+            disabled={
+              isLoadingCategories ||
+              Boolean(categoryError) ||
+              isSubmitting
+            }
             required
             aria-invalid={Boolean(error && !form.category)}
           >
@@ -246,10 +265,9 @@ const BudgetForm = ({
           <span>₹</span>
 
           <input
-            type="number"
-            min="0.01"
-            max="9999999999999.99"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            maxLength={16}
             placeholder="e.g. 5000"
             value={form.amount}
             onChange={(event) =>
@@ -257,8 +275,8 @@ const BudgetForm = ({
             }
             disabled={isSubmitting}
             required
-            inputMode="decimal"
-            aria-invalid={Boolean(error && !String(form.amount).trim())}
+            autoComplete="off"
+            aria-invalid={Boolean(error)}
           />
         </div>
 
@@ -333,13 +351,14 @@ const BudgetForm = ({
         >
           {isSubmitting ? (
             <>
-              <LoaderCircle size={15} className="budget-loading-icon" />
+              <LoaderCircle
+                size={15}
+                className="budget-loading-icon"
+              />
               Saving...
             </>
           ) : (
-            <>
-              {budget ? "Save changes" : "Create budget"}
-            </>
+            <>{budget ? "Save changes" : "Create budget"}</>
           )}
         </button>
       </div>

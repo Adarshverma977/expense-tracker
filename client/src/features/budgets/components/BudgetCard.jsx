@@ -9,15 +9,66 @@ import {
   CircleAlert,
 } from "lucide-react";
 
-const formatCurrency = (amount) => {
-  const value = Number(amount);
+const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+const parseMinorUnits = (value) => {
+  const amount = String(value ?? "").trim();
+
+  const match = amount.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+  );
+
+  if (!match) return null;
+
+  const [, sign, whole, fraction = "", exponentText = "0"] = match;
+  const exponent = Number(exponentText);
+
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) {
+    return null;
+  }
+
+  const digits = whole + fraction;
+  const scale = fraction.length - exponent;
+
+  let minorUnits;
+
+  if (scale <= 2) {
+    minorUnits = BigInt(digits) * 10n ** BigInt(2 - scale);
+  } else {
+    const divisor = 10n ** BigInt(scale - 2);
+    const rawValue = BigInt(digits);
+
+    if (rawValue % divisor !== 0n) return null;
+
+    minorUnits = rawValue / divisor;
+  }
+
+  return sign === "-" ? -minorUnits : minorUnits;
+};
+
+const formatCurrency = (amount) => {
+  const minorUnits = parseMinorUnits(amount);
+
+  if (minorUnits === null) {
+    return "₹0.00";
+  }
+
+  const isNegative = minorUnits < 0n;
+  const absoluteAmount = isNegative ? -minorUnits : minorUnits;
+
+  const whole = absoluteAmount / 100n;
+  const fraction = String(absoluteAmount % 100n).padStart(2, "0");
+
+  const formattedWhole = INTEGER_CURRENCY_FORMATTER.format(
+    isNegative ? -whole : whole
+  );
+
+  return `${formattedWhole}.${fraction}`;
 };
 
 const getSafeNumber = (value, fallback = 0) => {
@@ -50,13 +101,12 @@ const getStatus = (budget, spent, limit, percentage) => {
 };
 
 const BudgetCard = ({ budget, onEdit, onDelete }) => {
-  const spent = getSafeNumber(budget?.spentAmount);
-  const allocated = getSafeNumber(budget?.amount);
+  const spent = parseMinorUnits(budget?.spentAmount) ?? 0n;
+  const allocated = parseMinorUnits(budget?.amount) ?? 0n;
 
-  const remaining = getSafeNumber(
-    budget?.remainingAmount,
-    allocated - spent
-  );
+  const remaining =
+    parseMinorUnits(budget?.remainingAmount) ??
+    allocated - spent;
 
   const percentage = getSafeNumber(
     budget?.utilizationPercentage
@@ -89,7 +139,10 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
       : "var(--color-primary)";
 
   const remainingLabel =
-    remaining < 0 ? "Over budget" : "Remaining";
+    remaining < 0n ? "Over budget" : "Remaining";
+
+  const absoluteRemaining =
+    remaining < 0n ? -remaining : remaining;
 
   return (
     <motion.article
@@ -144,12 +197,12 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
       <div className="budget-card-amounts">
         <div>
           <span>Spent</span>
-          <strong>{formatCurrency(spent)}</strong>
+          <strong>{formatCurrency(spent.toString())}</strong>
         </div>
 
         <div className="budget-card-limit">
           <span>Budget limit</span>
-          <strong>{formatCurrency(allocated)}</strong>
+          <strong>{formatCurrency(allocated.toString())}</strong>
         </div>
       </div>
 
@@ -188,7 +241,9 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
 
         <div className="budget-remaining">
           <span>{remainingLabel}</span>
-          <strong>{formatCurrency(Math.abs(remaining))}</strong>
+          <strong>
+            {formatCurrency(absoluteRemaining.toString())}
+          </strong>
         </div>
       </div>
     </motion.article>

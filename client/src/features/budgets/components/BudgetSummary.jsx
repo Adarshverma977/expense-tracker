@@ -7,15 +7,66 @@ import {
   ChartNoAxesCombined,
 } from "lucide-react";
 
-const formatCurrency = (amount) => {
-  const value = Number(amount);
+const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+const parseMinorUnits = (value) => {
+  const amount = String(value ?? "").trim();
+
+  const match = amount.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+  );
+
+  if (!match) return null;
+
+  const [, sign, whole, fraction = "", exponentText = "0"] = match;
+  const exponent = Number(exponentText);
+
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) {
+    return null;
+  }
+
+  const digits = whole + fraction;
+  const scale = fraction.length - exponent;
+
+  let minorUnits;
+
+  if (scale <= 2) {
+    minorUnits = BigInt(digits) * 10n ** BigInt(2 - scale);
+  } else {
+    const divisor = 10n ** BigInt(scale - 2);
+    const rawValue = BigInt(digits);
+
+    if (rawValue % divisor !== 0n) return null;
+
+    minorUnits = rawValue / divisor;
+  }
+
+  return sign === "-" ? -minorUnits : minorUnits;
+};
+
+const formatCurrency = (amount) => {
+  const minorUnits = parseMinorUnits(amount);
+
+  if (minorUnits === null) {
+    return "₹0.00";
+  }
+
+  const isNegative = minorUnits < 0n;
+  const absoluteAmount = isNegative ? -minorUnits : minorUnits;
+
+  const whole = absoluteAmount / 100n;
+  const fraction = String(absoluteAmount % 100n).padStart(2, "0");
+
+  const formattedWhole = INTEGER_CURRENCY_FORMATTER.format(
+    isNegative ? -whole : whole
+  );
+
+  return `${formattedWhole}.${fraction}`;
 };
 
 const getSafeNumber = (value) => {
@@ -63,11 +114,14 @@ const BudgetSummary = ({ summary = {} }) => {
     ? summary.status
     : "safe";
 
-  const totalBudget = getSafeNumber(summary.totalBudget);
-  const totalSpent = getSafeNumber(summary.totalSpent);
+  const totalBudget = summary.totalBudget ?? "0.00";
+  const totalSpent = summary.totalSpent ?? "0.00";
 
   return (
-    <section className="budget-summary-section" aria-label="Budget overview">
+    <section
+      className="budget-summary-section"
+      aria-label="Budget overview"
+    >
       <div className="budget-summary-grid">
         {summaryItems.map((item, index) => {
           const Icon = item.icon;
@@ -122,9 +176,7 @@ const BudgetSummary = ({ summary = {} }) => {
           <div className="budget-utilization-percentage">
             <ChartNoAxesCombined size={17} />
 
-            <strong>
-              {actualUtilization.toFixed(1)}%
-            </strong>
+            <strong>{actualUtilization.toFixed(1)}%</strong>
           </div>
         </div>
 
