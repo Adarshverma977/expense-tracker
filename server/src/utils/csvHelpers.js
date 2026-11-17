@@ -8,6 +8,9 @@ const CSV_HEADERS = [
   "description",
   "date",
   "paymentMethod",
+  "walletId",
+  "wallet",
+  "walletType",
 ];
 
 const MAX_AMOUNT_PAISE = 99999999999999n;
@@ -31,7 +34,6 @@ const parseCsvAmount = (value) => {
   }
 
   const [wholePart, decimalPart = ""] = amount.split(".");
-
   const paise = BigInt(wholePart + decimalPart.padEnd(2, "0"));
 
   if (paise <= 0n || paise > MAX_AMOUNT_PAISE) {

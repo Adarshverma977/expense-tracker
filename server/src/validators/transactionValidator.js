@@ -25,11 +25,21 @@ const categoryIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid category ID.");
 
+const walletIdSchema = z.string().regex(objectIdRegex, "Invalid wallet ID.");
+
 const transactionIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid transaction ID.");
 
 const dateSchema = z.string().datetime({ offset: true });
+
+const paymentMethodSchema = z.enum([
+  "cash",
+  "upi",
+  "card",
+  "bank_transfer",
+  "other",
+]);
 
 const createTransactionSchema = z.object({
   body: z
@@ -42,18 +52,18 @@ const createTransactionSchema = z.object({
 
       category: categoryIdSchema,
 
+      wallet: walletIdSchema,
+
       description: z.string().trim().max(500).optional().default(""),
 
       date: dateSchema.optional(),
 
-      paymentMethod: z
-        .enum(["cash", "upi", "card", "bank_transfer", "other"])
-        .optional()
-        .default("other"),
+      paymentMethod: paymentMethodSchema.optional().default("other"),
     })
     .strict(),
 
   query: z.object({}).strict(),
+
   params: z.object({}).strict(),
 });
 
@@ -65,6 +75,8 @@ const getTransactionsSchema = z.object({
       type: z.enum(["income", "expense"]).optional(),
 
       category: categoryIdSchema.optional(),
+
+      wallet: walletIdSchema.optional(),
 
       startDate: dateSchema.optional(),
 
@@ -102,13 +114,13 @@ const updateTransactionSchema = z.object({
 
       category: categoryIdSchema.optional(),
 
+      wallet: walletIdSchema.nullable().optional(),
+
       description: z.string().trim().max(500).optional(),
 
       date: dateSchema.optional(),
 
-      paymentMethod: z
-        .enum(["cash", "upi", "card", "bank_transfer", "other"])
-        .optional(),
+      paymentMethod: paymentMethodSchema.optional(),
     })
     .strict()
     .refine(
@@ -127,6 +139,7 @@ const updateTransactionSchema = z.object({
 
 const transactionIdParamsSchema = z.object({
   body: z.object({}).strict(),
+
   query: z.object({}).strict(),
 
   params: z

@@ -6,8 +6,9 @@ const categoryIdSchema = z
   .string()
   .regex(objectIdRegex, "Invalid category ID.");
 
+const walletIdSchema = z.string().regex(objectIdRegex, "Invalid wallet ID.");
+
 const dateFilterSchema = z.string().refine((value) => {
-  // Support YYYY-MM-DD.
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const date = new Date(`${value}T00:00:00.000Z`);
 
@@ -16,7 +17,6 @@ const dateFilterSchema = z.string().refine((value) => {
     );
   }
 
-  // Support ISO datetime with timezone.
   const isIsoDateTime =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(
       value,
@@ -27,15 +27,11 @@ const dateFilterSchema = z.string().refine((value) => {
 
 const emptyObjectSchema = z.object({}).strict();
 
-// CSV IMPORT
-
 const importTransactionsSchema = z.object({
   body: z.record(z.string(), z.unknown()),
   query: emptyObjectSchema,
   params: emptyObjectSchema,
 });
-
-// CSV EXPORT
 
 const exportTransactionsSchema = z.object({
   body: emptyObjectSchema,
@@ -45,6 +41,8 @@ const exportTransactionsSchema = z.object({
       type: z.enum(["income", "expense"]).optional(),
 
       category: categoryIdSchema.optional(),
+
+      wallet: walletIdSchema.optional(),
 
       startDate: dateFilterSchema.optional(),
 

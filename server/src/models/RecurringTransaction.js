@@ -25,11 +25,7 @@ const recurringTransactionSchema = new mongoose.Schema(
           if (!value) return false;
 
           const amountString = value.toString();
-
-          // Supports positive decimal amounts with up to 2 decimal places.
           const validFormat = /^\d+(?:\.\d{1,2})?$/.test(amountString);
-
-          // Rejects zero without converting to a floating-point number.
           const isPositive = /[1-9]/.test(amountString);
 
           return validFormat && isPositive;
@@ -48,6 +44,12 @@ const recurringTransactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
       required: [true, "Transaction category is required"],
+    },
+
+    wallet: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wallet",
+      default: null,
     },
 
     description: {
@@ -110,7 +112,6 @@ const recurringTransactionSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Scheduler ownership and concurrency control.
     lockedUntil: {
       type: Date,
       default: null,
@@ -127,26 +128,29 @@ const recurringTransactionSchema = new mongoose.Schema(
   },
 );
 
-// Efficient user-specific recurring transaction queries.
 recurringTransactionSchema.index({
   user: 1,
   createdAt: -1,
 });
 
-// Efficient scheduler query for due active schedules.
 recurringTransactionSchema.index({
   status: 1,
   nextRunDate: 1,
 });
 
-// Efficient user-specific status filtering.
 recurringTransactionSchema.index({
   user: 1,
   status: 1,
   nextRunDate: 1,
 });
 
-// Validate schedule dates.
+recurringTransactionSchema.index({
+  user: 1,
+  wallet: 1,
+  status: 1,
+  nextRunDate: 1,
+});
+
 recurringTransactionSchema.pre("validate", function () {
   if (this.endDate && this.startDate && this.endDate < this.startDate) {
     this.invalidate("endDate", "End date cannot be before the start date.");

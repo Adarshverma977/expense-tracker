@@ -6,10 +6,8 @@ const validTypes = ["income", "expense"];
 const validPaymentMethods = ["cash", "upi", "card", "bank_transfer", "other"];
 const validStatuses = ["active", "paused", "cancelled", "completed"];
 
-// Empty objects for unused request sections.
 const emptyObjectSchema = z.object({}).strict();
 
-// Validate date strings strictly as YYYY-MM-DD.
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format.")
@@ -24,26 +22,25 @@ const dateSchema = z
     );
   }, "Invalid calendar date.");
 
-// Validate monetary amounts.
 const amountSchema = z
   .string()
   .regex(
-    /^\d+(\.\d{1,2})?$/,
+    /^\d+(?:\.\d{1,2})?$/,
     "Amount must be positive and have at most 2 decimal places.",
   )
-  .refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
-    message: "Amount must be greater than zero.",
-  })
-  .refine((value) => Number(value) <= 999999999999.99, {
-    message: "Amount exceeds the maximum allowed value.",
-  });
+  .refine((value) => {
+    const [whole, decimal = ""] = value.split(".");
+    const paise = BigInt(whole + decimal.padEnd(2, "0"));
 
-// Validate MongoDB ObjectIds.
+    return paise > 0n && paise <= 99999999999999n;
+  }, "Amount is outside the allowed range.");
+
 const objectIdSchema = z
   .string()
   .refine((value) => mongoose.isValidObjectId(value), "Invalid ID format.");
 
-// Validate creation requests.
+const walletSchema = objectIdSchema.nullable().optional();
+
 const createRecurringTransactionSchema = z
   .object({
     body: z
@@ -52,6 +49,7 @@ const createRecurringTransactionSchema = z
         amount: amountSchema,
         type: z.enum(validTypes),
         category: objectIdSchema,
+        wallet: walletSchema,
         description: z.string().trim().max(500).optional().default(""),
         paymentMethod: z.enum(validPaymentMethods).optional().default("other"),
         frequency: z.enum(validFrequencies),
@@ -69,7 +67,6 @@ const createRecurringTransactionSchema = z
   })
   .strict();
 
-// Validate update requests.
 const updateRecurringTransactionSchema = z
   .object({
     params: z
@@ -84,6 +81,7 @@ const updateRecurringTransactionSchema = z
         amount: amountSchema.optional(),
         type: z.enum(validTypes).optional(),
         category: objectIdSchema.optional(),
+        wallet: walletSchema,
         description: z.string().trim().max(500).optional(),
         paymentMethod: z.enum(validPaymentMethods).optional(),
         frequency: z.enum(validFrequencies).optional(),
@@ -100,7 +98,6 @@ const updateRecurringTransactionSchema = z
   })
   .strict();
 
-// Validate schedule ID.
 const recurringTransactionIdSchema = z
   .object({
     params: z
@@ -114,7 +111,6 @@ const recurringTransactionIdSchema = z
   })
   .strict();
 
-// Validate list filters.
 const getRecurringTransactionsSchema = z
   .object({
     query: z

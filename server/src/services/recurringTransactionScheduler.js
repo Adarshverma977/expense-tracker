@@ -1,30 +1,55 @@
+const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 
 const RecurringTransaction = require("../models/RecurringTransaction");
 const RecurringTransactionExecution = require("../models/RecurringTransactionExecution");
 const Transaction = require("../models/Transaction");
 const Category = require("../models/Category");
+const Wallet = require("../models/Wallet");
 
 const { calculateNextRunDate } = require("../utils/dateUtils");
+
+const { toMinorUnits, fromMinorUnits } = require("../utils/moneyUtils");
+
+const { createLedgerEntry } = require("./ledgerService");
 
 const LOCK_DURATION_MS = 2 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 50;
 
-// Generate a unique key for each scheduled occurrence.
+const TRANSACTION_OPTIONS = {
+  readPreference: "primary",
+  readConcern: { level: "snapshot" },
+  writeConcern: { w: "majority" },
+};
+
 const getIdempotencyKey = (scheduleId, scheduledFor) => {
   const dateKey = scheduledFor.toISOString().slice(0, 10);
   return `${scheduleId}:${dateKey}`;
 };
 
-// Exponential retry delay with a maximum of 30 minutes.
 const getRetryDelay = (attempts) => {
   const delay = 60 * 1000 * Math.pow(2, attempts - 1);
   return Math.min(delay, 30 * 60 * 1000);
 };
 
-// Atomically claim one due schedule.
+const runInTransaction = async (callback) => {
+  const session = await mongoose.startSession();
+
+  try {
+    let result;
+
+    await session.withTransaction(async () => {
+      result = await callback(session);
+    }, TRANSACTION_OPTIONS);
+
+    return result;
+  } finally {
+    await session.endSession();
+  }
+};
+
 const claimDueSchedule = async () => {
   const now = new Date();
   const lockToken = randomUUID();
@@ -52,7 +77,6 @@ const claimDueSchedule = async () => {
   );
 };
 
-// Renew schedule lock.
 const renewScheduleLock = async (schedule) => {
   const now = new Date();
 
@@ -75,7 +99,6 @@ const renewScheduleLock = async (schedule) => {
   return Boolean(updatedSchedule);
 };
 
-// Verify schedule lock ownership.
 const assertScheduleLockOwnership = async (schedule) => {
   const ownsLock = await renewScheduleLock(schedule);
 
@@ -86,7 +109,6 @@ const assertScheduleLockOwnership = async (schedule) => {
   }
 };
 
-// Validate category at execution time.
 const validateExecutionCategory = async (schedule) => {
   const category = await Category.findOne({
     _id: schedule.category,
@@ -108,7 +130,32 @@ const validateExecutionCategory = async (schedule) => {
   }
 };
 
-// Get or create execution ledger record.
+const validateExecutionWallet = async (schedule) => {
+  if (!schedule.wallet) {
+    return null;
+  }
+
+  const wallet = await Wallet.findOne({
+    _id: schedule.wallet,
+    user: schedule.user,
+    status: "active",
+  }).select("_id type");
+
+  if (!wallet) {
+    throw new Error(
+      "The recurring transaction wallet is unavailable or inactive.",
+    );
+  }
+
+  if (wallet.type === "credit_card" && schedule.type === "income") {
+    throw new Error(
+      "Income cannot be generated directly into a credit card wallet.",
+    );
+  }
+
+  return wallet;
+};
+
 const getOrCreateExecution = async (schedule, scheduledFor, idempotencyKey) => {
   let execution = await RecurringTransactionExecution.findOne({
     idempotencyKey,
@@ -142,7 +189,6 @@ const getOrCreateExecution = async (schedule, scheduledFor, idempotencyKey) => {
   }
 };
 
-// Atomically claim execution ledger record.
 const claimExecution = async (executionId) => {
   const now = new Date();
   const lockToken = randomUUID();
@@ -173,7 +219,6 @@ const claimExecution = async (executionId) => {
   );
 };
 
-// Renew execution lock.
 const renewExecutionLock = async (execution) => {
   const now = new Date();
 
@@ -195,7 +240,6 @@ const renewExecutionLock = async (execution) => {
   return Boolean(updatedExecution);
 };
 
-// Verify execution lock ownership.
 const assertExecutionLockOwnership = async (execution) => {
   const ownsLock = await renewExecutionLock(execution);
 
@@ -206,40 +250,126 @@ const assertExecutionLockOwnership = async (execution) => {
   }
 };
 
-// Find an existing generated transaction or create it.
+const createLedgerForTransaction = async (
+  transaction,
+  idempotencyKey,
+  session,
+  requireActiveWallet = true,
+) => {
+  if (!transaction.wallet) {
+    return;
+  }
+
+  const amount = toMinorUnits(transaction.amount.toString());
+
+  const signedAmount = transaction.type === "income" ? amount : -amount;
+
+  await createLedgerEntry(
+    transaction.user,
+    {
+      wallet: transaction.wallet,
+      amount: fromMinorUnits(signedAmount),
+      entryType: transaction.type,
+      sourceType: "recurring",
+      sourceId: transaction._id,
+      idempotencyKey: `recurring:${idempotencyKey}`,
+    },
+    {
+      session,
+      requireActiveWallet,
+    },
+  );
+};
+
+const reconcileExistingTransaction = async (transaction, idempotencyKey) => {
+  return runInTransaction(async (session) => {
+    const currentTransaction = await Transaction.findOne({
+      _id: transaction._id,
+      recurrenceKey: idempotencyKey,
+    }).session(session);
+
+    if (!currentTransaction) {
+      throw new Error(
+        "Previously generated recurring transaction could not be recovered.",
+      );
+    }
+
+    await createLedgerForTransaction(
+      currentTransaction,
+      idempotencyKey,
+      session,
+      false,
+    );
+
+    return currentTransaction;
+  });
+};
+
 const createOrRecoverTransaction = async (
   schedule,
   scheduledFor,
   idempotencyKey,
 ) => {
-  let transaction = await Transaction.findOne({
-    recurrenceKey: idempotencyKey,
-  });
-
-  if (transaction) {
-    return transaction;
-  }
-
   try {
-    return await Transaction.create({
-      user: schedule.user,
-      title: schedule.title,
-      amount: schedule.amount,
-      type: schedule.type,
-      category: schedule.category,
-      description: schedule.description,
-      paymentMethod: schedule.paymentMethod,
-      date: scheduledFor,
-      recurrenceKey: idempotencyKey,
+    return await runInTransaction(async (session) => {
+      let transaction = await Transaction.findOne({
+        recurrenceKey: idempotencyKey,
+      }).session(session);
+
+      if (transaction) {
+        await createLedgerForTransaction(
+          transaction,
+          idempotencyKey,
+          session,
+          false,
+        );
+
+        return transaction;
+      }
+
+      await validateExecutionCategory(schedule);
+      await validateExecutionWallet(schedule);
+
+      const transactionPayload = {
+        user: schedule.user,
+        title: schedule.title,
+        amount: schedule.amount,
+        type: schedule.type,
+        category: schedule.category,
+        description: schedule.description,
+        paymentMethod: schedule.paymentMethod,
+        date: scheduledFor,
+        wallet: schedule.wallet ?? null,
+        recurrenceKey: idempotencyKey,
+      };
+
+      const [createdTransaction] = await Transaction.create(
+        [transactionPayload],
+        { session },
+      );
+
+      await createLedgerForTransaction(
+        createdTransaction,
+        idempotencyKey,
+        session,
+        true,
+      );
+
+      transaction = createdTransaction;
+
+      return transaction;
     });
   } catch (error) {
     if (error.code === 11000) {
-      transaction = await Transaction.findOne({
+      const existingTransaction = await Transaction.findOne({
         recurrenceKey: idempotencyKey,
       });
 
-      if (transaction) {
-        return transaction;
+      if (existingTransaction) {
+        return reconcileExistingTransaction(
+          existingTransaction,
+          idempotencyKey,
+        );
       }
     }
 
@@ -247,7 +377,6 @@ const createOrRecoverTransaction = async (
   }
 };
 
-// Advance schedule only when this worker owns its valid lock.
 const advanceSchedule = async (schedule, scheduledFor) => {
   const nextRunDate = calculateNextRunDate(scheduledFor, schedule.frequency);
 
@@ -275,7 +404,6 @@ const advanceSchedule = async (schedule, scheduledFor) => {
   );
 };
 
-// Release schedule lock only while the current lease is valid.
 const deferScheduleUntil = async (schedule, lockedUntil) => {
   return RecurringTransaction.findOneAndUpdate(
     {
@@ -293,7 +421,6 @@ const deferScheduleUntil = async (schedule, lockedUntil) => {
   );
 };
 
-// Mark execution failed only if this worker owns its execution lock.
 const markExecutionFailed = async (execution, error) => {
   if (!execution) return null;
 
@@ -316,7 +443,6 @@ const markExecutionFailed = async (execution, error) => {
   );
 };
 
-// Pause schedule after maximum attempts.
 const pauseAfterMaxAttempts = async (schedule) => {
   return RecurringTransaction.findOneAndUpdate(
     {
@@ -336,7 +462,6 @@ const pauseAfterMaxAttempts = async (schedule) => {
   );
 };
 
-// Process one claimed schedule.
 const processClaimedSchedule = async (schedule) => {
   const scheduledFor = schedule.nextRunDate;
 
@@ -357,7 +482,6 @@ const processClaimedSchedule = async (schedule) => {
       idempotencyKey,
     );
 
-    // Reconcile a completed execution after a previous crash.
     if (existingExecution.status === "completed") {
       const recoveredSchedule = await advanceSchedule(schedule, scheduledFor);
 
@@ -371,7 +495,6 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
-    // Pause schedule if maximum attempts have been exhausted.
     if (existingExecution.attempts >= MAX_ATTEMPTS) {
       const paused = await pauseAfterMaxAttempts(schedule);
 
@@ -385,7 +508,6 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
-    // Atomically claim execution.
     execution = await claimExecution(existingExecution._id);
 
     if (!execution) {
@@ -404,7 +526,6 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
-    // Start heartbeat after both locks have been acquired.
     heartbeat = setInterval(async () => {
       if (heartbeatInProgress || lockLost) return;
 
@@ -434,22 +555,26 @@ const processClaimedSchedule = async (schedule) => {
 
     heartbeat.unref?.();
 
-    // Verify both locks.
     await assertScheduleLockOwnership(schedule);
     await assertExecutionLockOwnership(execution);
 
-    // IMPORTANT:
-    // Recover an existing transaction before validating category.
     let transaction = await Transaction.findOne({
       recurrenceKey: idempotencyKey,
     });
 
     if (!transaction) {
       await validateExecutionCategory(schedule);
+      await validateExecutionWallet(schedule);
 
       await assertScheduleLockOwnership(schedule);
       await assertExecutionLockOwnership(execution);
 
+      transaction = await createOrRecoverTransaction(
+        schedule,
+        scheduledFor,
+        idempotencyKey,
+      );
+    } else {
       transaction = await createOrRecoverTransaction(
         schedule,
         scheduledFor,
@@ -469,7 +594,6 @@ const processClaimedSchedule = async (schedule) => {
     await assertScheduleLockOwnership(schedule);
     await assertExecutionLockOwnership(execution);
 
-    // Complete execution only if this worker still owns its lease.
     const completedExecution =
       await RecurringTransactionExecution.findOneAndUpdate(
         {
@@ -541,8 +665,6 @@ const processClaimedSchedule = async (schedule) => {
       };
     }
 
-    // A completed ledger must remain completed.
-    // A later worker will reconcile schedule advancement.
     if (execution && execution.status === "completed") {
       await deferScheduleUntil(schedule, new Date(Date.now() + 5000));
 
@@ -620,7 +742,6 @@ const processClaimedSchedule = async (schedule) => {
     if (heartbeat) {
       clearInterval(heartbeat);
 
-      // Wait for any in-flight heartbeat before leaving.
       while (heartbeatInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
@@ -628,7 +749,6 @@ const processClaimedSchedule = async (schedule) => {
   }
 };
 
-// Main scheduler entry point.
 const processDueRecurringTransactions = async ({
   batchSize = BATCH_SIZE,
 } = {}) => {

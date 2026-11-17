@@ -5,6 +5,7 @@ const { stringify } = require("csv-stringify/sync");
 
 const Transaction = require("../models/Transaction");
 const Category = require("../models/Category");
+const Wallet = require("../models/Wallet");
 const AppError = require("../utils/AppError");
 
 const {
@@ -15,8 +16,18 @@ const {
   validateCsvHeaders,
 } = require("../utils/csvHelpers");
 
+const { toMinorUnits, fromMinorUnits } = require("../utils/moneyUtils");
+
+const { createLedgerEntry } = require("./ledgerService");
+
 const MAX_IMPORT_ROWS = 1000;
 const MAX_EXPORT_ROWS = 10000;
+
+const TRANSACTION_OPTIONS = {
+  readPreference: "primary",
+  readConcern: { level: "snapshot" },
+  writeConcern: { w: "majority" },
+};
 
 const normalizeText = (value) =>
   String(value ?? "")
@@ -24,60 +35,9 @@ const normalizeText = (value) =>
     .toLowerCase();
 
 const normalizeAmount = (value) => {
-  const amount = String(value).trim();
-
-  const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
-
-  if (!match) {
-    throw new Error("Invalid monetary value.");
-  }
-
-  const [, sign, whole, fraction = "", exponent = "0"] = match;
-
-  const exponentValue = Number(exponent);
-
-  if (!Number.isSafeInteger(exponentValue)) {
-    throw new Error("Invalid monetary exponent.");
-  }
-
-  let digits = `${whole}${fraction}`;
-  let scale = fraction.length - exponentValue;
-
-  digits = digits.replace(/^0+/, "") || "0";
-
-  if (scale > 2) {
-    const extraDigits = scale - 2;
-
-    if (extraDigits > digits.length) {
-      if (digits !== "0") {
-        throw new Error("Unsupported monetary precision.");
-      }
-
-      digits = "0";
-    } else {
-      if (!digits.endsWith("0".repeat(extraDigits))) {
-        throw new Error("Unsupported monetary precision.");
-      }
-
-      digits = digits.slice(0, -extraDigits) || "0";
-    }
-
-    scale = 2;
-  }
-
-  if (scale < 2) {
-    const additionalZeros = 2 - scale;
-
-    if (digits.length + additionalZeros > 100) {
-      throw new Error("Monetary value is too large.");
-    }
-
-    digits += "0".repeat(additionalZeros);
-  }
-
-  const minorUnits = BigInt(digits);
-
-  return `${sign === "-" && minorUnits > 0n ? "-" : ""}${minorUnits}`;
+  return toMinorUnits(String(value), {
+    allowZero: true,
+  }).toString();
 };
 
 const createDuplicateKey = (transaction) => {
@@ -88,13 +48,14 @@ const createDuplicateKey = (transaction) => {
     String(transaction.category),
     new Date(transaction.date).getTime(),
     transaction.paymentMethod || "other",
+    transaction.wallet ? String(transaction.wallet) : "",
   ].join("|");
 };
 
 const createCsvImportKey = (transaction) => {
   const fingerprint = createDuplicateKey(transaction);
 
-  return `csv:v1:${crypto
+  return `csv:v2:${crypto
     .createHash("sha256")
     .update(fingerprint)
     .digest("hex")}`;
@@ -143,44 +104,60 @@ const buildDateFilter = (startDate, endDate) => {
   return dateFilter;
 };
 
-const getBulkWriteErrors = (error) => {
-  if (Array.isArray(error.writeErrors)) {
-    return error.writeErrors;
-  }
+const runInTransaction = async (callback) => {
+  const session = await mongoose.startSession();
 
-  if (Array.isArray(error.result?.writeErrors)) {
-    return error.result.writeErrors;
-  }
+  try {
+    let result;
 
-  if (typeof error.result?.getWriteErrors === "function") {
-    return error.result.getWriteErrors();
-  }
+    await session.withTransaction(async () => {
+      result = await callback(session);
+    }, TRANSACTION_OPTIONS);
 
-  return [];
+    return result;
+  } finally {
+    await session.endSession();
+  }
 };
 
-const getWriteErrorCode = (writeError) => {
-  return (
-    writeError.code ?? writeError.err?.code ?? writeError.error?.code ?? null
-  );
+const getErrorCode = (error) => {
+  return error.code ?? error.errorResponse?.code ?? null;
 };
 
-const getWriteErrorMessage = (writeError) => {
-  const validationErrors = writeError.err?.errors || writeError.errors;
+const resolveWallet = (walletData, walletMap) => {
+  const walletId = walletData.walletId;
+  const walletName = walletData.wallet;
+  const walletType = walletData.walletType;
 
-  if (validationErrors) {
-    return Object.values(validationErrors)
-      .map((item) => item.message)
-      .filter(Boolean)
-      .join(", ");
+  if (!walletId && (walletName || walletType)) {
+    throw new Error(
+      "walletId is required when wallet or walletType is provided.",
+    );
   }
 
-  return (
-    writeError.err?.errmsg ||
-    writeError.err?.message ||
-    writeError.message ||
-    "Unable to save this transaction."
-  );
+  if (!walletId) {
+    return null;
+  }
+
+  if (!mongoose.isValidObjectId(walletId)) {
+    throw new Error("Invalid wallet ID.");
+  }
+
+  const wallet = walletMap.get(walletId.toLowerCase());
+
+  if (!wallet) {
+    throw new Error("Wallet not found or not active.");
+  }
+
+  if (walletName && normalizeText(walletName) !== normalizeText(wallet.name)) {
+    throw new Error("Wallet name does not match the supplied walletId.");
+  }
+
+  if (walletType && normalizeText(walletType) !== wallet.type) {
+    throw new Error("Wallet type does not match the supplied walletId.");
+  }
+
+  return wallet;
 };
 
 const importTransactions = async (userId, fileBuffer) => {
@@ -226,21 +203,37 @@ const importTransactions = async (userId, fileBuffer) => {
 
   const getValue = (row, field) => {
     const index = headerIndex[field];
+
     return index === undefined ? "" : String(row[index] ?? "").trim();
   };
 
-  const categories = await Category.find({
-    isActive: true,
-    $or: [{ isDefault: true }, { user: userId, isDefault: false }],
-  })
-    .select("_id name normalizedName type")
-    .lean();
+  const [categories, wallets] = await Promise.all([
+    Category.find({
+      isActive: true,
+      $or: [{ isDefault: true }, { user: userId, isDefault: false }],
+    })
+      .select("_id name normalizedName type")
+      .lean(),
+
+    Wallet.find({
+      user: userId,
+      status: "active",
+    })
+      .select("_id name type")
+      .lean(),
+  ]);
 
   const categoryMap = new Map();
 
   categories.forEach((category) => {
     const key = `${category.type}:${category.normalizedName}`;
     categoryMap.set(key, category);
+  });
+
+  const walletMap = new Map();
+
+  wallets.forEach((wallet) => {
+    walletMap.set(wallet._id.toString().toLowerCase(), wallet);
   });
 
   const validRows = [];
@@ -297,6 +290,21 @@ const importTransactions = async (userId, fileBuffer) => {
         );
       }
 
+      const wallet = resolveWallet(
+        {
+          walletId: getValue(row, "walletid"),
+          wallet: getValue(row, "wallet"),
+          walletType: getValue(row, "wallettype"),
+        },
+        walletMap,
+      );
+
+      if (wallet?.type === "credit_card" && type === "income") {
+        throw new Error(
+          "Income cannot be imported directly into a credit card wallet.",
+        );
+      }
+
       const transaction = {
         user: userId,
         title,
@@ -306,6 +314,7 @@ const importTransactions = async (userId, fileBuffer) => {
         description,
         date,
         paymentMethod,
+        wallet: wallet?._id ?? null,
       };
 
       const duplicateKey = createDuplicateKey(transaction);
@@ -367,10 +376,11 @@ const importTransactions = async (userId, fileBuffer) => {
       $lte: lastDate,
     },
   })
-    .select("title amount type category date paymentMethod")
+    .select("title amount type category date paymentMethod wallet")
     .lean();
 
   const existingKeys = new Set(existingTransactions.map(createDuplicateKey));
+
   const transactionsToInsert = [];
 
   for (const item of validRows) {
@@ -390,75 +400,77 @@ const importTransactions = async (userId, fileBuffer) => {
 
     transactionsToInsert.push({
       ...item,
-      transaction: {
-        ...item.transaction,
-        csvImportKey: createCsvImportKey(item.transaction),
-      },
+      csvImportKey: createCsvImportKey(item.transaction),
     });
   }
 
   let importedCount = 0;
   let databaseFailureCount = 0;
 
-  if (transactionsToInsert.length > 0) {
+  for (const item of transactionsToInsert) {
     try {
-      const insertedTransactions = await Transaction.insertMany(
-        transactionsToInsert.map((item) => item.transaction),
-        {
-          ordered: false,
-        },
-      );
+      await runInTransaction(async (session) => {
+        const existingImport = await Transaction.findOne({
+          user: userId,
+          csvImportKey: item.csvImportKey,
+        }).session(session);
 
-      importedCount = insertedTransactions.length;
+        if (existingImport) {
+          throw new AppError(
+            "Transaction already exists (concurrent import).",
+            409,
+          );
+        }
+
+        const transactionPayload = {
+          ...item.transaction,
+          amount: mongoose.Types.Decimal128.fromString(item.transaction.amount),
+          csvImportKey: item.csvImportKey,
+        };
+
+        const [transaction] = await Transaction.create([transactionPayload], {
+          session,
+        });
+
+        if (transaction.wallet) {
+          const amount = toMinorUnits(transaction.amount.toString());
+
+          const signedAmount = transaction.type === "income" ? amount : -amount;
+
+          await createLedgerEntry(
+            userId,
+            {
+              wallet: transaction.wallet,
+              amount: fromMinorUnits(signedAmount),
+              entryType: transaction.type,
+              sourceType: "csv_import",
+              sourceId: transaction._id,
+              idempotencyKey: `csv:${item.csvImportKey}`,
+            },
+            { session },
+          );
+        }
+      });
+
+      importedCount += 1;
     } catch (error) {
-      const writeErrors = getBulkWriteErrors(error);
+      if (getErrorCode(error) === 11000 || error.statusCode === 409) {
+        duplicateCount += 1;
 
-      if (!writeErrors.length) {
-        throw error;
+        rowErrors.push({
+          row: item.rowNumber,
+          message: "Transaction already exists (concurrent import).",
+          type: "duplicate",
+        });
+      } else {
+        databaseFailureCount += 1;
+
+        rowErrors.push({
+          row: item.rowNumber,
+          message: error.message || "Unable to save this transaction.",
+          type: "database",
+        });
       }
-
-      const failedIndexes = new Set();
-
-      for (const writeError of writeErrors) {
-        const index = writeError.index;
-
-        if (
-          !Number.isInteger(index) ||
-          index < 0 ||
-          index >= transactionsToInsert.length
-        ) {
-          throw error;
-        }
-
-        if (failedIndexes.has(index)) {
-          continue;
-        }
-
-        failedIndexes.add(index);
-
-        const item = transactionsToInsert[index];
-        const errorCode = getWriteErrorCode(writeError);
-
-        if (errorCode === 11000) {
-          duplicateCount += 1;
-
-          rowErrors.push({
-            row: item.rowNumber,
-            message: "Transaction already exists (concurrent import).",
-            type: "duplicate",
-          });
-        } else {
-          databaseFailureCount += 1;
-
-          rowErrors.push({
-            row: item.rowNumber,
-            message: getWriteErrorMessage(writeError),
-            type: "database",
-          });
-        }
-      }
-
-      importedCount = transactionsToInsert.length - failedIndexes.size;
     }
   }
 
@@ -476,7 +488,14 @@ const importTransactions = async (userId, fileBuffer) => {
 };
 
 const exportTransactions = async (userId, filters = {}) => {
-  const { type, category, startDate, endDate, sort = "newest" } = filters;
+  const {
+    type,
+    category,
+    wallet,
+    startDate,
+    endDate,
+    sort = "newest",
+  } = filters;
 
   const query = { user: userId };
 
@@ -506,6 +525,23 @@ const exportTransactions = async (userId, filters = {}) => {
     query.category = category;
   }
 
+  if (wallet) {
+    if (!mongoose.isValidObjectId(wallet)) {
+      throw new AppError("Invalid wallet ID.", 400);
+    }
+
+    const validWallet = await Wallet.findOne({
+      _id: wallet,
+      user: userId,
+    }).select("_id");
+
+    if (!validWallet) {
+      throw new AppError("Wallet not found.", 404);
+    }
+
+    query.wallet = validWallet._id;
+  }
+
   if (startDate || endDate) {
     query.date = buildDateFilter(startDate, endDate);
   }
@@ -524,6 +560,7 @@ const exportTransactions = async (userId, filters = {}) => {
 
   const transactions = await Transaction.find(query)
     .populate("category", "name")
+    .populate("wallet", "name type")
     .sort(sortOption)
     .limit(MAX_EXPORT_ROWS)
     .lean();
@@ -536,6 +573,9 @@ const exportTransactions = async (userId, filters = {}) => {
     description: protectCsvFormula(transaction.description || ""),
     date: new Date(transaction.date).toISOString(),
     paymentMethod: transaction.paymentMethod || "other",
+    walletId: transaction.wallet?._id?.toString() || "",
+    wallet: protectCsvFormula(transaction.wallet?.name || ""),
+    walletType: transaction.wallet?.type || "",
   }));
 
   return stringify(csvRows, {
@@ -548,6 +588,9 @@ const exportTransactions = async (userId, filters = {}) => {
       "description",
       "date",
       "paymentMethod",
+      "walletId",
+      "wallet",
+      "walletType",
     ],
   });
 };

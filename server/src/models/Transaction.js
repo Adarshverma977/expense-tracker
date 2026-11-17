@@ -20,7 +20,7 @@ const isValidTransactionAmount = (value) => {
   if (!Number.isSafeInteger(exponentValue)) return false;
 
   let digits = `${whole}${fraction}`;
-  let scale = fraction.length - exponentValue;
+  const scale = fraction.length - exponentValue;
 
   if (!/[1-9]/.test(digits)) return false;
 
@@ -48,6 +48,12 @@ const transactionSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Transaction user is required"],
       index: true,
+    },
+
+    wallet: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wallet",
+      default: null,
     },
 
     title: {
@@ -124,6 +130,12 @@ transactionSchema.index({
   user: 1,
   date: -1,
   _id: -1,
+});
+
+transactionSchema.index({
+  user: 1,
+  wallet: 1,
+  date: -1,
 });
 
 transactionSchema.index({

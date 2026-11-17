@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const RecurringTransaction = require("../models/RecurringTransaction");
 const Category = require("../models/Category");
+const Wallet = require("../models/Wallet");
 const AppError = require("../utils/AppError");
 
 const {
@@ -9,7 +10,6 @@ const {
   validateScheduleDates,
 } = require("../utils/dateUtils");
 
-// Convert YYYY-MM-DD into a strictly validated UTC calendar date.
 const parseDateOnly = (value) => {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -39,7 +39,6 @@ const parseDateOnly = (value) => {
   return parsedDate;
 };
 
-// Format Decimal128 amounts for API responses.
 const formatRecurringTransaction = (transaction) => {
   const data = transaction.toObject ? transaction.toObject() : transaction;
 
@@ -49,7 +48,6 @@ const formatRecurringTransaction = (transaction) => {
   };
 };
 
-// Validate category ownership, activity and transaction type.
 const validateCategory = async (userId, categoryId, transactionType) => {
   if (!mongoose.isValidObjectId(categoryId)) {
     throw new AppError("Invalid category ID.", 400);
@@ -72,14 +70,41 @@ const validateCategory = async (userId, categoryId, transactionType) => {
   return category;
 };
 
-// Validate recurring schedule ID.
+const validateWallet = async (userId, walletId, transactionType) => {
+  if (walletId === null || walletId === undefined || walletId === "") {
+    return null;
+  }
+
+  if (!mongoose.isValidObjectId(walletId)) {
+    throw new AppError("Invalid wallet ID.", 400);
+  }
+
+  const wallet = await Wallet.findOne({
+    _id: walletId,
+    user: userId,
+    status: "active",
+  });
+
+  if (!wallet) {
+    throw new AppError("Wallet not found or inactive.", 400);
+  }
+
+  if (wallet.type === "credit_card" && transactionType === "income") {
+    throw new AppError(
+      "Income cannot be scheduled directly into a credit card wallet.",
+      400,
+    );
+  }
+
+  return wallet;
+};
+
 const validateScheduleId = (scheduleId) => {
   if (!mongoose.isValidObjectId(scheduleId)) {
     throw new AppError("Invalid recurring transaction ID.", 400);
   }
 };
 
-// Prevent modifications to terminal schedules.
 const ensureEditable = (schedule) => {
   if (schedule.status === "cancelled") {
     throw new AppError(
@@ -96,7 +121,6 @@ const ensureEditable = (schedule) => {
   }
 };
 
-// Match schedules that are not currently claimed by the scheduler.
 const getUnlockedCondition = (now = new Date()) => ({
   $or: [
     { lockedUntil: null },
@@ -105,8 +129,6 @@ const getUnlockedCondition = (now = new Date()) => ({
   ],
 });
 
-// Calculate the first eligible execution using UTC calendar-day semantics.
-// Past occurrences are skipped, but today's occurrence is preserved.
 const getNextRunDate = (startDate, frequency, endDate) => {
   const nextRunDate = calculateNextFutureRunDate(
     startDate,
@@ -121,7 +143,6 @@ const getNextRunDate = (startDate, frequency, endDate) => {
   return nextRunDate;
 };
 
-// Throw a meaningful error when an atomic mutation cannot be performed.
 const handleMutationFailure = async (userId, scheduleId) => {
   const currentSchedule = await RecurringTransaction.findOne({
     _id: scheduleId,
@@ -147,7 +168,6 @@ const handleMutationFailure = async (userId, scheduleId) => {
   );
 };
 
-// CREATE RECURRING TRANSACTION
 const createRecurringTransaction = async (userId, data) => {
   const {
     title,
@@ -159,9 +179,11 @@ const createRecurringTransaction = async (userId, data) => {
     frequency,
     startDate,
     endDate,
+    wallet,
   } = data;
 
   await validateCategory(userId, category, type);
+  const validatedWallet = await validateWallet(userId, wallet, type);
 
   const parsedStartDate = parseDateOnly(startDate);
   const parsedEndDate = parseDateOnly(endDate);
@@ -189,13 +211,13 @@ const createRecurringTransaction = async (userId, data) => {
     startDate: parsedStartDate,
     nextRunDate,
     endDate: parsedEndDate,
+    wallet: validatedWallet?._id ?? null,
     status: "active",
   });
 
   return formatRecurringTransaction(schedule);
 };
 
-// GET ALL RECURRING TRANSACTIONS
 const getRecurringTransactions = async (userId, filters = {}) => {
   const {
     status,
@@ -224,6 +246,7 @@ const getRecurringTransactions = async (userId, filters = {}) => {
   const [schedules, total] = await Promise.all([
     RecurringTransaction.find(query)
       .populate("category", "name type icon color isDefault")
+      .populate("wallet", "name type status")
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
@@ -245,7 +268,6 @@ const getRecurringTransactions = async (userId, filters = {}) => {
   };
 };
 
-// GET SINGLE RECURRING TRANSACTION
 const getRecurringTransactionById = async (userId, scheduleId) => {
   validateScheduleId(scheduleId);
 
@@ -254,6 +276,7 @@ const getRecurringTransactionById = async (userId, scheduleId) => {
     user: userId,
   })
     .populate("category", "name type icon color isDefault")
+    .populate("wallet", "name type status")
     .lean();
 
   if (!schedule) {
@@ -263,7 +286,6 @@ const getRecurringTransactionById = async (userId, scheduleId) => {
   return formatRecurringTransaction(schedule);
 };
 
-// UPDATE RECURRING TRANSACTION
 const updateRecurringTransaction = async (userId, scheduleId, updates) => {
   validateScheduleId(scheduleId);
 
@@ -283,6 +305,16 @@ const updateRecurringTransaction = async (userId, scheduleId, updates) => {
 
   if (updates.type !== undefined || updates.category !== undefined) {
     await validateCategory(userId, nextCategory, nextType);
+  }
+
+  const walletChanged = Object.prototype.hasOwnProperty.call(updates, "wallet");
+
+  const nextWalletId = walletChanged ? updates.wallet : schedule.wallet;
+
+  let validatedWallet = null;
+
+  if (walletChanged || updates.type !== undefined) {
+    validatedWallet = await validateWallet(userId, nextWalletId, nextType);
   }
 
   const nextFrequency = updates.frequency ?? schedule.frequency;
@@ -338,6 +370,10 @@ const updateRecurringTransaction = async (userId, scheduleId, updates) => {
     }
   });
 
+  if (walletChanged) {
+    updateFields.wallet = validatedWallet?._id ?? null;
+  }
+
   if (updates.startDate !== undefined) {
     updateFields.startDate = nextStartDate;
   }
@@ -375,7 +411,6 @@ const updateRecurringTransaction = async (userId, scheduleId, updates) => {
   return formatRecurringTransaction(updatedSchedule);
 };
 
-// PAUSE RECURRING TRANSACTION
 const pauseRecurringTransaction = async (userId, scheduleId) => {
   validateScheduleId(scheduleId);
 
@@ -427,7 +462,6 @@ const pauseRecurringTransaction = async (userId, scheduleId) => {
   return formatRecurringTransaction(schedule);
 };
 
-// RESUME RECURRING TRANSACTION
 const resumeRecurringTransaction = async (userId, scheduleId) => {
   validateScheduleId(scheduleId);
 
@@ -449,7 +483,6 @@ const resumeRecurringTransaction = async (userId, scheduleId) => {
 
   const now = new Date();
 
-  // Skip missed occurrences but preserve today's occurrence.
   const nextRunDate = calculateNextFutureRunDate(
     current.nextRunDate,
     current.frequency,
@@ -490,7 +523,6 @@ const resumeRecurringTransaction = async (userId, scheduleId) => {
   return formatRecurringTransaction(updatedSchedule);
 };
 
-// CANCEL RECURRING TRANSACTION
 const cancelRecurringTransaction = async (userId, scheduleId) => {
   validateScheduleId(scheduleId);
 
