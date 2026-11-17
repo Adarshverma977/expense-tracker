@@ -6,8 +6,9 @@ const {
   getTransferById,
 } = require("../controllers/transferController");
 
-const { protect } = require("../middlewares/authMiddleware");
-const validateRequest = require("../middlewares/validateRequest");
+const { protect } = require("../middleware/authMiddleware");
+
+const validateRequest = require("../middleware/validateRequest");
 
 const {
   createTransferSchema,
