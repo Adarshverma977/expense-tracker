@@ -14,6 +14,7 @@ const recurringTransactionRoutes = require("./routes/recurringTransactionRoutes"
 const financialGoalRoutes = require("./routes/financialGoalRoutes");
 const walletRoutes = require("./routes/walletRoutes");
 const transferRoutes = require("./routes/transferRoutes");
+const billRoutes = require("./routes/billRoutes");
 
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
@@ -56,6 +57,7 @@ app.use("/api/recurring-transactions", recurringTransactionRoutes);
 app.use("/api/financial-goals", financialGoalRoutes);
 app.use("/api/wallets", walletRoutes);
 app.use("/api/transfers", transferRoutes);
+app.use("/api/bills", billRoutes);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
