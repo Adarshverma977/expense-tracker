@@ -5,7 +5,7 @@ const Category = require("../models/Category");
 const Wallet = require("../models/Wallet");
 const AppError = require("../utils/AppError");
 
-const { fromMinorUnits, toMinorUnits } = require("../utils/moneyUtils");
+const { toMinorUnits } = require("../utils/moneyUtils");
 
 const MAX_AMOUNT_PAISE = 99999999999999n;
 
@@ -79,31 +79,72 @@ const validateWallet = async (userId, walletId) => {
   return wallet;
 };
 
+const addMonthsClamped = (date, months) => {
+  const originalDate = new Date(date);
+  const originalDay = originalDate.getUTCDate();
+
+  const targetMonth = new Date(
+    Date.UTC(
+      originalDate.getUTCFullYear(),
+      originalDate.getUTCMonth() + months,
+      1,
+      originalDate.getUTCHours(),
+      originalDate.getUTCMinutes(),
+      originalDate.getUTCSeconds(),
+      originalDate.getUTCMilliseconds(),
+    ),
+  );
+
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+
+  targetMonth.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
+
+  return targetMonth;
+};
+
 const calculateNextDueDate = (date, frequency) => {
-  const nextDate = new Date(date);
+  const currentDate = new Date(date);
+
+  if (Number.isNaN(currentDate.getTime())) {
+    return null;
+  }
 
   switch (frequency) {
-    case "weekly":
-      nextDate.setDate(nextDate.getDate() + 7);
-      break;
+    case "weekly": {
+      const nextDate = new Date(currentDate);
+      nextDate.setUTCDate(nextDate.getUTCDate() + 7);
+      return nextDate;
+    }
 
     case "monthly":
-      nextDate.setMonth(nextDate.getMonth() + 1);
-      break;
+      return addMonthsClamped(currentDate, 1);
 
     case "quarterly":
-      nextDate.setMonth(nextDate.getMonth() + 3);
-      break;
+      return addMonthsClamped(currentDate, 3);
 
     case "yearly":
-      nextDate.setFullYear(nextDate.getFullYear() + 1);
-      break;
+      return addMonthsClamped(currentDate, 12);
 
     default:
       return null;
   }
+};
 
-  return nextDate;
+const validateNextDueDate = (nextDueDate, dueDate) => {
+  if (!(nextDueDate instanceof Date) || Number.isNaN(nextDueDate.getTime())) {
+    throw new AppError("Invalid next bill due date.", 400);
+  }
+
+  if (nextDueDate <= dueDate) {
+    throw new AppError(
+      "Next due date must be later than the current due date.",
+      400,
+    );
+  }
+
+  return nextDueDate;
 };
 
 const formatBill = (bill) => {
@@ -142,9 +183,7 @@ const parseDateBoundary = (value, fieldName, isEndDate = false) => {
   return parsedDate;
 };
 
-const getEffectiveDueDate = () => ({
-  $ifNull: ["$nextDueDate", "$dueDate"],
-});
+const getEffectiveDueDate = () => "$dueDate";
 
 const createBill = async (userId, billData) => {
   const {
@@ -179,8 +218,13 @@ const createBill = async (userId, billData) => {
   let calculatedNextDueDate = null;
 
   if (frequency !== "one_time") {
-    calculatedNextDueDate =
-      nextDueDate ?? calculateNextDueDate(dueDate, frequency);
+    calculatedNextDueDate = nextDueDate
+      ? validateNextDueDate(nextDueDate, dueDate)
+      : calculateNextDueDate(dueDate, frequency);
+
+    if (!calculatedNextDueDate) {
+      throw new AppError("Unable to calculate the next bill due date.", 500);
+    }
   }
 
   const bill = await Bill.create({
@@ -316,7 +360,7 @@ const getBills = async (userId, filters = {}) => {
   const sortOptions = {
     newest: { createdAt: -1, _id: -1 },
     oldest: { createdAt: 1, _id: 1 },
-    due_soon: { nextDueDate: 1, dueDate: 1, _id: 1 },
+    due_soon: { dueDate: 1, _id: 1 },
     amount_high: { amount: -1, _id: -1 },
     amount_low: { amount: 1, _id: 1 },
   };
@@ -418,6 +462,12 @@ const updateBill = async (userId, billId, updates) => {
   const frequencyChanged = nextFrequency !== bill.frequency;
   const dueDateChanged = updates.dueDate !== undefined;
 
+  const effectiveDueDate = updates.dueDate ?? bill.dueDate;
+
+  if (updates.nextDueDate !== undefined && nextFrequency !== "one_time") {
+    validateNextDueDate(updates.nextDueDate, effectiveDueDate);
+  }
+
   Object.assign(bill, updates);
 
   if (nextFrequency === "one_time") {
@@ -427,9 +477,13 @@ const updateBill = async (userId, billId, updates) => {
     dueDateChanged ||
     updates.nextDueDate !== undefined
   ) {
-    bill.nextDueDate =
-      updates.nextDueDate ??
-      calculateNextDueDate(updates.dueDate ?? bill.dueDate, nextFrequency);
+    bill.nextDueDate = updates.nextDueDate
+      ? validateNextDueDate(updates.nextDueDate, bill.dueDate)
+      : calculateNextDueDate(bill.dueDate, nextFrequency);
+
+    if (!bill.nextDueDate) {
+      throw new AppError("Unable to calculate the next bill due date.", 500);
+    }
   }
 
   await bill.save();

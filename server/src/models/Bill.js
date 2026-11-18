@@ -8,7 +8,7 @@ const BILL_FREQUENCIES = [
   "yearly",
 ];
 
-const BILL_STATUSES = ["active", "paused", "archived"];
+const BILL_STATUSES = ["active", "paused", "paid", "archived"];
 
 const MAX_AMOUNT_PAISE = 99999999999999n;
 
@@ -156,11 +156,6 @@ billSchema.index({
 billSchema.pre("validate", function () {
   if (this.frequency === "one_time") {
     this.nextDueDate = null;
-    return;
-  }
-
-  if (!this.nextDueDate && this.dueDate) {
-    this.nextDueDate = this.dueDate;
   }
 });
 

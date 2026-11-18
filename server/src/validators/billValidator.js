@@ -67,7 +67,28 @@ const createBillSchema = z
 
     notes: z.string().trim().max(1000).optional().default(""),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.frequency === "one_time" && data.nextDueDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextDueDate"],
+        message: "One-time bills cannot have a next due date.",
+      });
+    }
+
+    if (
+      data.frequency !== "one_time" &&
+      data.nextDueDate &&
+      data.nextDueDate <= data.dueDate
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextDueDate"],
+        message: "Next due date must be later than the current due date.",
+      });
+    }
+  });
 
 const updateBillSchema = z
   .object({
@@ -99,7 +120,30 @@ const updateBillSchema = z
   .refine(
     (data) => Object.keys(data).length > 0,
     "At least one field is required for an update.",
-  );
+  )
+  .superRefine((data, ctx) => {
+    if (data.frequency === "one_time" && data.nextDueDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextDueDate"],
+        message: "One-time bills cannot have a next due date.",
+      });
+    }
+
+    if (
+      data.frequency &&
+      data.frequency !== "one_time" &&
+      data.dueDate &&
+      data.nextDueDate &&
+      data.nextDueDate <= data.dueDate
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextDueDate"],
+        message: "Next due date must be later than the current due date.",
+      });
+    }
+  });
 
 const getBillsSchema = z
   .object({
