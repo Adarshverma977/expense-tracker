@@ -15,6 +15,7 @@ import {
   Repeat,
   LogOut,
   Target,
+  CreditCard,
   Menu,
   X,
   ChevronDown,
@@ -43,6 +44,11 @@ const navigationItems = [
     label: "Transactions",
     path: "/transactions",
     icon: ReceiptText,
+  },
+  {
+    label: "Bills & Payments",
+    path: "/bills",
+    icon: CreditCard,
   },
   {
     label: "Recurring Transactions",
@@ -94,7 +100,9 @@ const AppLayout = () => {
   const [loggingOut, setLoggingOut] = useState(false);
 
   const currentPage = navigationItems.find(
-    (item) => item.path === location.pathname
+    (item) =>
+      item.path === location.pathname ||
+      location.pathname.startsWith(`${item.path}/`)
   );
 
   const pageTitle = currentPage?.label || "Your finances";
@@ -258,13 +266,19 @@ const AppLayout = () => {
           <button
             type="button"
             className="sidebar-collapse-button"
-            onClick={() => setSidebarCollapsed((current) => !current)}
+            onClick={() =>
+              setSidebarCollapsed((current) => !current)
+            }
             aria-label={
               sidebarCollapsed
                 ? "Expand sidebar"
                 : "Collapse sidebar"
             }
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={
+              sidebarCollapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
           >
             {sidebarCollapsed ? (
               <PanelLeftOpen size={18} />

@@ -14,6 +14,7 @@ import CategoriesPage from "./features/categories/CategoriesPage";
 import BudgetPage from "./features/budgets/BudgetPage";
 import RecurringTransactionsPage from "./features/recurringTransactions/RecurringTransactionsPage";
 import FinancialGoalsPage from "./features/financialGoals/FinancialGoalsPage";
+import BillPage from "./features/bills/BillPage";
 
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -44,26 +45,33 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+
           <Route
             path="/transactions"
             element={<TransactionPage />}
           />
+
           <Route
             path="/categories"
             element={<CategoriesPage />}
           />
+
           <Route path="/budgets" element={<BudgetPage />} />
 
-          {/* Recurring transactions */}
           <Route
             path="/recurring-transactions"
             element={<RecurringTransactionsPage />}
           />
 
-          {/* Financial Goals */}
           <Route
             path="/financial-goals"
             element={<FinancialGoalsPage />}
+          />
+
+          {/* Bills & Payments */}
+          <Route
+            path="/bills"
+            element={<BillPage />}
           />
         </Route>
       </Route>
