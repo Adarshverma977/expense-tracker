@@ -133,7 +133,6 @@ const billSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    versionKey: true,
   },
 );
 
