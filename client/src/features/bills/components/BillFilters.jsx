@@ -1,5 +1,4 @@
 
-import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
@@ -20,6 +19,7 @@ function BillFilters({
 
   const safeFilters = {
     status: filters.status || "",
+    paymentStatus: filters.paymentStatus || "",
     frequency: filters.frequency || "",
     category: filters.category || "",
     wallet: filters.wallet || "",
@@ -31,6 +31,7 @@ function BillFilters({
 
   const activeFilterCount = [
     safeFilters.status,
+    safeFilters.paymentStatus,
     safeFilters.frequency,
     safeFilters.category,
     safeFilters.wallet,
@@ -42,9 +43,8 @@ function BillFilters({
 
   const hasFilters = activeFilterCount > 0;
 
-  const filteredCategories = useMemo(
-    () => safeCategories.filter((category) => category.type === "expense"),
-    [safeCategories],
+  const filteredCategories = safeCategories.filter(
+    (category) => category.type === "expense"
   );
 
   const updateFilter = (key, value) => {
@@ -61,6 +61,15 @@ function BillFilters({
       value > safeFilters.endDate
     ) {
       nextFilters.endDate = "";
+    }
+
+    if (
+      key === "endDate" &&
+      safeFilters.startDate &&
+      value &&
+      value < safeFilters.startDate
+    ) {
+      nextFilters.startDate = "";
     }
 
     onChange?.(nextFilters);
@@ -153,6 +162,19 @@ function BillFilters({
           <option value="active">Active</option>
           <option value="paused">Paused</option>
           <option value="archived">Archived</option>
+        </select>
+
+        <select
+          value={safeFilters.paymentStatus}
+          onChange={(event) =>
+            updateFilter("paymentStatus", event.target.value)
+          }
+          aria-label="Payment status"
+        >
+          <option value="">All payment statuses</option>
+          <option value="paid">Paid</option>
+          <option value="partially_paid">Partially paid</option>
+          <option value="unpaid">Unpaid</option>
         </select>
 
         <select

@@ -44,12 +44,16 @@ const INITIAL_FILTERS = {
 };
 
 const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
+  error?.response?.data?.message ||
+  error?.response?.data?.error ||
+  error?.message ||
+  fallback;
 
 const BillPage = () => {
   const [bills, setBills] = useState([]);
   const [categories, setCategories] = useState([]);
   const [wallets, setWallets] = useState([]);
+
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -58,10 +62,12 @@ const BillPage = () => {
   });
 
   const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [dependencyError, setDependencyError] = useState("");
 
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
@@ -83,6 +89,44 @@ const BillPage = () => {
 
   const requestIdRef = useRef(0);
   const historyRequestIdRef = useRef(0);
+  const historyBillRef = useRef(null);
+
+  historyBillRef.current = historyBill;
+
+  const requestFilters = useMemo(
+    () => ({
+      status: filters.status,
+      frequency: filters.frequency,
+      category: filters.category,
+      wallet: filters.wallet,
+      due: filters.due,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      page: filters.page,
+      limit: filters.limit,
+      sort: filters.sort,
+    }),
+    [
+      filters.status,
+      filters.frequency,
+      filters.category,
+      filters.wallet,
+      filters.due,
+      filters.startDate,
+      filters.endDate,
+      filters.page,
+      filters.limit,
+      filters.sort,
+    ],
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search.trim());
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   const fetchBills = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -91,12 +135,19 @@ const BillPage = () => {
       setError("");
       setIsLoading(true);
 
-      const {
-        search,
-        ...apiFilters
-      } = filters;
+      const cleanedFilters = Object.fromEntries(
+        Object.entries({
+          ...requestFilters,
+          search: debouncedSearch,
+        }).filter(
+          ([, value]) =>
+            value !== "" &&
+            value !== null &&
+            value !== undefined,
+        ),
+      );
 
-      const response = await getBills(apiFilters);
+      const response = await getBills(cleanedFilters);
 
       if (requestId !== requestIdRef.current) return;
 
@@ -105,26 +156,34 @@ const BillPage = () => {
       setBills(Array.isArray(result.bills) ? result.bills : []);
 
       setPagination({
-        page: result.pagination?.page || filters.page,
-        limit: result.pagination?.limit || filters.limit,
-        total: result.pagination?.total || 0,
-        totalPages: result.pagination?.totalPages || 1,
+        page: result.pagination?.page ?? filters.page,
+        limit: result.pagination?.limit ?? filters.limit,
+        total: result.pagination?.total ?? 0,
+        totalPages: result.pagination?.totalPages ?? 1,
       });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
 
       setError(getErrorMessage(err, "Unable to load bills."));
       setBills([]);
+
+      setPagination((current) => ({
+        ...current,
+        total: 0,
+        totalPages: 1,
+      }));
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
         setIsRefreshing(false);
       }
     }
-  }, [filters]);
+  }, [requestFilters, debouncedSearch, filters.page, filters.limit]);
 
   const fetchDependencies = useCallback(async () => {
     try {
+      setDependencyError("");
+
       const [categoryResponse, walletResponse] = await Promise.all([
         getCategories(),
         getWallets({ status: "active" }),
@@ -133,7 +192,12 @@ const BillPage = () => {
       setCategories(categoryResponse?.data?.categories || []);
       setWallets(walletResponse?.data?.wallets || []);
     } catch (err) {
-      setError(getErrorMessage(err, "Unable to load categories and wallets."));
+      setDependencyError(
+        getErrorMessage(
+          err,
+          "Unable to load categories and wallets.",
+        ),
+      );
     }
   }, []);
 
@@ -145,18 +209,6 @@ const BillPage = () => {
     fetchBills();
   }, [fetchBills, refreshKey]);
 
-  const filteredBills = useMemo(() => {
-    const search = filters.search.trim().toLowerCase();
-
-    if (!search) return bills;
-
-    return bills.filter((bill) =>
-      [bill.title, bill.payee, bill.description, bill.category?.name]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(search)),
-    );
-  }, [bills, filters.search]);
-
   const handleFilterChange = (nextFilters) => {
     setFilters((current) => ({
       ...current,
@@ -166,7 +218,8 @@ const BillPage = () => {
   };
 
   const handleResetFilters = () => {
-    setFilters(INITIAL_FILTERS);
+    setFilters({ ...INITIAL_FILTERS });
+    setDebouncedSearch("");
   };
 
   const handleRefresh = () => {
@@ -233,27 +286,9 @@ const BillPage = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePaymentSubmit = async (paymentData) => {
-    try {
-      setIsPaying(true);
+  const fetchPaymentHistory = useCallback(async (bill) => {
+    if (!bill?._id) return;
 
-      await createBillPayment(paymentData);
-
-      setIsPaymentModalOpen(false);
-      setSelectedBill(null);
-      setRefreshKey((current) => current + 1);
-
-      if (historyBill?._id === paymentData.bill) {
-        await fetchPaymentHistory(historyBill);
-      }
-    } catch (err) {
-      setError(getErrorMessage(err, "Unable to record payment."));
-    } finally {
-      setIsPaying(false);
-    }
-  };
-
-  const fetchPaymentHistory = async (bill) => {
     const requestId = ++historyRequestIdRef.current;
 
     try {
@@ -271,7 +306,9 @@ const BillPage = () => {
 
       const result = response?.data || {};
 
-      setPayments(Array.isArray(result.payments) ? result.payments : []);
+      setPayments(
+        Array.isArray(result.payments) ? result.payments : [],
+      );
     } catch (err) {
       if (requestId !== historyRequestIdRef.current) return;
 
@@ -284,11 +321,38 @@ const BillPage = () => {
         setIsHistoryLoading(false);
       }
     }
+  }, []);
+
+  const handlePaymentSubmit = async (paymentData) => {
+    try {
+      setIsPaying(true);
+
+      await createBillPayment(paymentData);
+
+      setIsPaymentModalOpen(false);
+      setSelectedBill(null);
+      setRefreshKey((current) => current + 1);
+
+      const currentHistoryBill = historyBillRef.current;
+
+      if (currentHistoryBill?._id === paymentData.bill) {
+        await fetchPaymentHistory(currentHistoryBill);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "Unable to record payment."));
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   const openPaymentHistory = (bill) => {
+    historyRequestIdRef.current += 1;
+
     setHistoryBill(bill);
     setPayments([]);
+    setHistoryError("");
+    setIsHistoryLoading(true);
+
     fetchPaymentHistory(bill);
   };
 
@@ -297,6 +361,7 @@ const BillPage = () => {
     setHistoryBill(null);
     setPayments([]);
     setHistoryError("");
+    setIsHistoryLoading(false);
   };
 
   const handleRetryHistory = () => {
@@ -312,6 +377,24 @@ const BillPage = () => {
     }));
   };
 
+  useEffect(() => {
+    if (!historyBill) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closePaymentHistory();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [historyBill]);
+
+  const visibleError = error || dependencyError;
+
   return (
     <motion.main
       className="bill-page"
@@ -325,7 +408,7 @@ const BillPage = () => {
             FINANCIAL MANAGEMENT
           </span>
 
-          <h1> Bills & Payments </h1>
+          <h1>Bills & Payments</h1>
 
           <p>
             Manage your recurring bills, upcoming payments and payment history.
@@ -365,13 +448,16 @@ const BillPage = () => {
         onReset={handleResetFilters}
       />
 
-      {error && (
+      {visibleError && (
         <div className="bill-error-alert" role="alert">
-          <span>{error}</span>
+          <span>{visibleError}</span>
 
           <button
             type="button"
-            onClick={() => setError("")}
+            onClick={() => {
+              setError("");
+              setDependencyError("");
+            }}
             aria-label="Dismiss error"
           >
             ×
@@ -401,10 +487,10 @@ const BillPage = () => {
             </div>
           ))}
         </div>
-      ) : filteredBills.length > 0 ? (
+      ) : bills.length > 0 ? (
         <>
           <div className="bill-list">
-            {filteredBills.map((bill) => (
+            {bills.map((bill) => (
               <div className="bill-list-item" key={bill._id}>
                 <BillCard
                   bill={bill}
@@ -452,7 +538,11 @@ const BillPage = () => {
       ) : (
         <div className="bill-empty-state">
           <div className="bill-empty-icon">
-            {filters.search ? <ReceiptText size={25} /> : <Archive size={25} />}
+            {filters.search ? (
+              <ReceiptText size={25} />
+            ) : (
+              <Archive size={25} />
+            )}
           </div>
 
           <h3>

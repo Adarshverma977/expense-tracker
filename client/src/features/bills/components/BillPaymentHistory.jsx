@@ -1,4 +1,4 @@
-
+import "./BillPaymentHistory.css";
 import { motion } from "framer-motion";
 import {
   Receipt,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   RotateCcw,
   Clock3,
+  AlertCircle,
 } from "lucide-react";
 
 const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
@@ -18,7 +19,12 @@ const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
 
 const parseMinorUnits = (value) => {
   const amount = String(value ?? "").trim();
-  const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+
+  if (!amount || amount.length > 100) return null;
+
+  const match = amount.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+  );
 
   if (!match) return null;
 
@@ -34,15 +40,20 @@ const parseMinorUnits = (value) => {
 
   let minorUnits;
 
-  if (scale <= 2) {
-    minorUnits = BigInt(digits) * 10n ** BigInt(2 - scale);
-  } else {
-    const divisor = 10n ** BigInt(scale - 2);
-    const rawValue = BigInt(digits);
+  try {
+    if (scale <= 2) {
+      minorUnits =
+        BigInt(digits) * 10n ** BigInt(2 - scale);
+    } else {
+      const divisor = 10n ** BigInt(scale - 2);
+      const rawValue = BigInt(digits);
 
-    if (rawValue % divisor !== 0n) return null;
+      if (rawValue % divisor !== 0n) return null;
 
-    minorUnits = rawValue / divisor;
+      minorUnits = rawValue / divisor;
+    }
+  } catch {
+    return null;
   }
 
   return sign === "-" ? -minorUnits : minorUnits;
@@ -70,7 +81,9 @@ const formatDate = (value) => {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
 
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -80,19 +93,28 @@ const formatDate = (value) => {
 };
 
 const getPaymentStatus = (status) => {
-  if (status === "reversed") {
-    return {
-      label: "Reversed",
-      className: "reversed",
-      Icon: RotateCcw,
-    };
-  }
+  switch (status) {
+    case "reversed":
+      return {
+        label: "Reversed",
+        className: "reversed",
+        Icon: RotateCcw,
+      };
 
-  return {
-    label: "Completed",
-    className: "completed",
-    Icon: CheckCircle2,
-  };
+    case "completed":
+      return {
+        label: "Completed",
+        className: "completed",
+        Icon: CheckCircle2,
+      };
+
+    default:
+      return {
+        label: "Unknown",
+        className: "unknown",
+        Icon: AlertCircle,
+      };
+  }
 };
 
 const BillPaymentHistory = ({
@@ -103,17 +125,36 @@ const BillPaymentHistory = ({
 }) => {
   const safePayments = Array.isArray(payments) ? payments : [];
 
+  const sortedPayments = [...safePayments].sort((a, b) => {
+    const dateA = new Date(a?.paidAt || 0).getTime();
+    const dateB = new Date(b?.paidAt || 0).getTime();
+
+    const validDateA = Number.isNaN(dateA) ? 0 : dateA;
+    const validDateB = Number.isNaN(dateB) ? 0 : dateB;
+
+    return validDateB - validDateA;
+  });
+
   if (isLoading) {
     return (
-      <section className="bill-payment-history">
+      <section
+        className="bill-payment-history"
+        aria-busy="true"
+      >
         <div className="bill-history-heading">
           <div>
-            <span className="bill-modal-eyebrow">PAYMENT ACTIVITY</span>
+            <span className="bill-modal-eyebrow">
+              PAYMENT ACTIVITY
+            </span>
             <h3>Payment history</h3>
           </div>
         </div>
 
-        <div className="bill-history-loading" role="status">
+        <div
+          className="bill-history-loading"
+          role="status"
+          aria-label="Loading payment history"
+        >
           <div className="bill-history-skeleton" />
           <div className="bill-history-skeleton" />
           <div className="bill-history-skeleton" />
@@ -125,12 +166,19 @@ const BillPaymentHistory = ({
   if (error) {
     return (
       <section className="bill-payment-history">
-        <div className="bill-history-error" role="alert">
+        <div
+          className="bill-history-error"
+          role="alert"
+        >
           <Receipt size={22} />
+
           <p>{error}</p>
 
           {onRetry && (
-            <button type="button" onClick={onRetry}>
+            <button
+              type="button"
+              onClick={onRetry}
+            >
               Try again
             </button>
           )}
@@ -143,37 +191,49 @@ const BillPaymentHistory = ({
     <section className="bill-payment-history">
       <div className="bill-history-heading">
         <div>
-          <span className="bill-modal-eyebrow">PAYMENT ACTIVITY</span>
+          <span className="bill-modal-eyebrow">
+            PAYMENT ACTIVITY
+          </span>
+
           <h3>Payment history</h3>
-          <p>Review payments recorded against this bill.</p>
+
+          <p>
+            Review payments recorded against this bill.
+          </p>
         </div>
 
-        <span className="bill-history-count">
-          {safePayments.length}{" "}
-          {safePayments.length === 1 ? "payment" : "payments"}
+        <span
+          className="bill-history-count"
+          aria-label={`${sortedPayments.length} payment records displayed`}
+        >
+          {sortedPayments.length}{" "}
+          {sortedPayments.length === 1
+            ? "payment"
+            : "payments"}
         </span>
       </div>
 
-      {safePayments.length > 0 ? (
+      {sortedPayments.length > 0 ? (
         <div className="bill-history-list">
-          {safePayments.map((payment, index) => {
-            const status = getPaymentStatus(payment.status);
+          {sortedPayments.map((payment, index) => {
+            const status = getPaymentStatus(payment?.status);
             const StatusIcon = status.Icon;
 
             const wallet =
-              payment.wallet && typeof payment.wallet === "object"
+              payment?.wallet &&
+                typeof payment.wallet === "object"
                 ? payment.wallet
                 : null;
 
             return (
               <motion.article
-                key={payment._id || index}
+                key={payment?._id || `${payment?.paidAt}-${index}`}
                 className="bill-history-item"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
                   duration: 0.25,
-                  delay: index * 0.05,
+                  delay: Math.min(index * 0.04, 0.2),
                 }}
               >
                 <div className="bill-history-item-icon">
@@ -184,17 +244,18 @@ const BillPaymentHistory = ({
                   <div className="bill-history-item-top">
                     <div>
                       <strong>
-                        {formatCurrency(payment.amount)}
+                        {formatCurrency(payment?.amount)}
                       </strong>
 
                       <span>
                         <CalendarDays size={13} />
-                        {formatDate(payment.paidAt)}
+                        {formatDate(payment?.paidAt)}
                       </span>
                     </div>
 
                     <span
                       className={`bill-history-status ${status.className}`}
+                      aria-label={`Payment status: ${status.label}`}
                     >
                       <StatusIcon size={13} />
                       {status.label}
@@ -207,7 +268,7 @@ const BillPaymentHistory = ({
                       {wallet?.name || "Wallet unavailable"}
                     </span>
 
-                    {payment.notes && (
+                    {payment?.notes && (
                       <span className="bill-history-notes">
                         {payment.notes}
                       </span>
@@ -225,6 +286,7 @@ const BillPaymentHistory = ({
           </div>
 
           <h4>No payments recorded yet</h4>
+
           <p>
             Payments made against this bill will appear here.
           </p>

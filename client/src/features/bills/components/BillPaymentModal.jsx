@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
@@ -11,10 +11,38 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+const getLocalDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getRemainingAmount = (bill) => {
+  if (!bill) return "";
+
+  if (bill.remainingAmount != null) {
+    return Number(bill.remainingAmount).toFixed(2);
+  }
+
+  const paidAmount = Number(
+    bill.paidAmount ?? bill.totalPaid ?? 0
+  );
+
+  const remaining = Math.max(
+    Number(bill.amount || 0) - paidAmount,
+    0
+  );
+
+  return remaining.toFixed(2);
+};
+
 const getInitialForm = (bill) => ({
-  amount: bill?.amount?.toString() || "",
+  amount: getRemainingAmount(bill),
   wallet: "",
-  paidAt: new Date().toISOString().slice(0, 10),
+  paidAt: getLocalDate(),
   notes: "",
 });
 
@@ -45,12 +73,18 @@ const BillPaymentModal = ({
 
   const [formError, setFormError] = useState("");
 
+  const idempotencyKeyRef = useRef(null);
+  const submittingRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
-      setFormData(getInitialForm(bill));
-      setFormError("");
-    }
-  }, [isOpen, bill]);
+    if (!isOpen) return;
+
+    setFormData(getInitialForm(bill));
+    setFormError("");
+
+    idempotencyKeyRef.current = crypto.randomUUID();
+    submittingRef.current = false;
+  }, [isOpen, bill?._id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -87,6 +121,9 @@ const BillPaymentModal = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (submittingRef.current || isSubmitting) return;
+
     setFormError("");
 
     if (!bill?._id) {
@@ -102,12 +139,26 @@ const BillPaymentModal = ({
     const amount = formData.amount.trim();
 
     if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
-      setFormError("Enter a valid amount with up to 2 decimal places.");
+      setFormError(
+        "Enter a valid amount with up to 2 decimal places."
+      );
       return;
     }
 
     if (Number(amount) <= 0) {
       setFormError("Payment amount must be greater than zero.");
+      return;
+    }
+
+    const remainingAmount = Number(getRemainingAmount(bill));
+
+    if (
+      Number.isFinite(remainingAmount) &&
+      Number(amount) > remainingAmount
+    ) {
+      setFormError(
+        "Payment amount cannot exceed the remaining bill amount."
+      );
       return;
     }
 
@@ -125,14 +176,25 @@ const BillPaymentModal = ({
       return;
     }
 
+    if (formData.notes.length > 500) {
+      setFormError("Notes cannot exceed 500 characters.");
+      return;
+    }
+
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
+
     const payload = {
       bill: bill._id,
       wallet: formData.wallet,
       amount,
       paidAt: selectedDate.toISOString(),
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: idempotencyKeyRef.current,
       notes: formData.notes.trim(),
     };
+
+    submittingRef.current = true;
 
     try {
       await onSubmit?.(payload);
@@ -142,6 +204,8 @@ const BillPaymentModal = ({
         error?.message ||
         "Unable to record payment. Please try again."
       );
+    } finally {
+      submittingRef.current = false;
     }
   };
 
@@ -188,7 +252,8 @@ const BillPaymentModal = ({
                   </h2>
 
                   <p>
-                    Record a payment for {bill?.title || "this bill"}.
+                    Record a payment for{" "}
+                    {bill?.title || "this bill"}.
                   </p>
                 </div>
               </div>
@@ -306,8 +371,12 @@ const BillPaymentModal = ({
                     onChange={handleChange}
                     placeholder="Add payment reference or notes..."
                     rows={3}
-                    maxLength={1000}
+                    maxLength={500}
                   />
+
+                  <span className="bill-notes-counter">
+                    {formData.notes.length}/500
+                  </span>
                 </div>
               </div>
 
@@ -340,18 +409,24 @@ const BillPaymentModal = ({
                 <motion.button
                   type="submit"
                   className="bill-form-submit"
-                  disabled={isSubmitting || activeWallets.length === 0}
+                  disabled={
+                    isSubmitting ||
+                    activeWallets.length === 0
+                  }
                   whileTap={{ scale: 0.97 }}
                 >
                   <CreditCard size={17} />
-                  {isSubmitting ? "Processing..." : "Record payment"}
+
+                  {isSubmitting
+                    ? "Processing..."
+                    : "Record payment"}
                 </motion.button>
               </div>
 
               {activeWallets.length === 0 && (
                 <p className="bill-payment-wallet-warning">
-                  No active wallets available. Please create or activate
-                  a wallet before recording a payment.
+                  No active wallets available. Please create or
+                  activate a wallet before recording a payment.
                 </p>
               )}
             </form>

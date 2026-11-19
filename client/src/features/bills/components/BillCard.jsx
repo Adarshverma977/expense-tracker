@@ -1,5 +1,5 @@
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Pencil,
   Archive,
@@ -13,6 +13,7 @@ import {
   Clock3,
   IndianRupee,
 } from "lucide-react";
+import "./BillCard.css";
 
 const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -24,7 +25,11 @@ const INTEGER_CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
 const parseMinorUnits = (value) => {
   const amount = String(value ?? "").trim();
 
-  const match = amount.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if (!amount || amount.length > 100) return null;
+
+  const match = amount.match(
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+  );
 
   if (!match) return null;
 
@@ -40,15 +45,20 @@ const parseMinorUnits = (value) => {
 
   let minorUnits;
 
-  if (scale <= 2) {
-    minorUnits = BigInt(digits) * 10n ** BigInt(2 - scale);
-  } else {
-    const divisor = 10n ** BigInt(scale - 2);
-    const rawValue = BigInt(digits);
+  try {
+    if (scale <= 2) {
+      minorUnits =
+        BigInt(digits) * 10n ** BigInt(2 - scale);
+    } else {
+      const divisor = 10n ** BigInt(scale - 2);
+      const rawValue = BigInt(digits);
 
-    if (rawValue % divisor !== 0n) return null;
+      if (rawValue % divisor !== 0n) return null;
 
-    minorUnits = rawValue / divisor;
+      minorUnits = rawValue / divisor;
+    }
+  } catch {
+    return null;
   }
 
   return sign === "-" ? -minorUnits : minorUnits;
@@ -72,12 +82,38 @@ const formatCurrency = (value) => {
   return `${formattedWhole}.${fraction}`;
 };
 
-const formatDate = (value) => {
-  if (!value) return "Date unavailable";
+const parseCalendarDate = (value) => {
+  if (!value) return null;
+
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date;
+  }
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+};
+
+const formatDate = (value) => {
+  const date = parseCalendarDate(value);
+
+  if (!date) return "Date unavailable";
 
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -87,11 +123,9 @@ const formatDate = (value) => {
 };
 
 const getDaysUntilDue = (dueDate) => {
-  if (!dueDate) return null;
+  const due = parseCalendarDate(dueDate);
 
-  const due = new Date(dueDate);
-
-  if (Number.isNaN(due.getTime())) return null;
+  if (!due) return null;
 
   const today = new Date();
 
@@ -179,6 +213,8 @@ const getStatusDetails = (status, daysUntilDue) => {
 };
 
 const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
+  const shouldReduceMotion = useReducedMotion();
+
   if (!bill) return null;
 
   const daysUntilDue = getDaysUntilDue(bill.dueDate);
@@ -209,19 +245,21 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
 
   const dueLabel =
     daysUntilDue === null
-      ? "Due date"
+      ? "Due date unavailable"
       : daysUntilDue < 0
         ? `${Math.abs(daysUntilDue)} days overdue`
         : daysUntilDue === 0
           ? "Due today"
-          : `Due in ${daysUntilDue} days`;
+          : daysUntilDue === 1
+            ? "Due tomorrow"
+            : `Due in ${daysUntilDue} days`;
 
   return (
     <motion.article
       className={`bill-card bill-card-${status.className}`}
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
+      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
       transition={{
         duration: 0.25,
         ease: "easeOut",
@@ -322,8 +360,8 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
             type="button"
             className="bill-pay-button"
             onClick={() => onPay?.(bill)}
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+            whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
           >
             <IndianRupee size={15} />
             Pay now
