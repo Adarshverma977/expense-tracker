@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Bill = require("../models/Bill");
+const BillPayment = require("../models/BillPayment");
 const Category = require("../models/Category");
 const Wallet = require("../models/Wallet");
 const AppError = require("../utils/AppError");
@@ -10,6 +11,8 @@ const { toMinorUnits } = require("../utils/moneyUtils");
 const MAX_AMOUNT_PAISE = 99999999999999n;
 
 const FREQUENCIES = ["one_time", "weekly", "monthly", "quarterly", "yearly"];
+
+const PAYMENT_STATUSES = ["paid", "partially_paid", "unpaid"];
 
 const validateAmount = (value) => {
   if (typeof value !== "string") {
@@ -183,7 +186,91 @@ const parseDateBoundary = (value, fieldName, isEndDate = false) => {
   return parsedDate;
 };
 
-const getEffectiveDueDate = () => "$dueDate";
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizePagination = (page, limit) => {
+  const normalizedPage = Number(page);
+  const normalizedLimit = Number(limit);
+
+  if (!Number.isInteger(normalizedPage) || normalizedPage < 1) {
+    throw new AppError("Invalid page number.", 400);
+  }
+
+  if (
+    !Number.isInteger(normalizedLimit) ||
+    normalizedLimit < 1 ||
+    normalizedLimit > 100
+  ) {
+    throw new AppError("Limit must be between 1 and 100.", 400);
+  }
+
+  return {
+    page: normalizedPage,
+    limit: normalizedLimit,
+  };
+};
+
+const getPaymentStatusForBills = async (userId, bills) => {
+  if (!bills.length) return new Map();
+
+  const billIds = bills.map((bill) => bill._id);
+
+  const payments = await BillPayment.aggregate([
+    {
+      $match: {
+        user: new mongoose.Types.ObjectId(userId),
+        bill: { $in: billIds },
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: {
+          bill: "$bill",
+          billDueDate: "$billDueDate",
+        },
+        totalPaid: {
+          $sum: "$amount",
+        },
+      },
+    },
+  ]);
+
+  const paymentMap = new Map();
+
+  payments.forEach((payment) => {
+    const billId = payment._id.bill.toString();
+    const dueDateKey = payment._id.billDueDate.toISOString();
+
+    paymentMap.set(`${billId}:${dueDateKey}`, payment.totalPaid.toString());
+  });
+
+  const statusMap = new Map();
+
+  bills.forEach((bill) => {
+    const billId = bill._id.toString();
+    const dueDateKey = bill.dueDate.toISOString();
+
+    const paymentKey = `${billId}:${dueDateKey}`;
+
+    const totalPaidString = paymentMap.get(paymentKey) || "0";
+
+    const totalPaidMinor = toMinorUnits(totalPaidString);
+    const billAmountMinor = toMinorUnits(bill.amount.toString());
+
+    let paymentStatus = "unpaid";
+
+    if (totalPaidMinor >= billAmountMinor) {
+      paymentStatus = "paid";
+    } else if (totalPaidMinor > 0n) {
+      paymentStatus = "partially_paid";
+    }
+
+    statusMap.set(billId, paymentStatus);
+  });
+
+  return statusMap;
+};
 
 const createBill = async (userId, billData) => {
   const {
@@ -247,22 +334,41 @@ const createBill = async (userId, billData) => {
 
 const getBills = async (userId, filters = {}) => {
   const {
+    search,
     status,
+    paymentStatus,
     frequency,
     category,
     wallet,
     startDate,
     endDate,
     due,
-    page = 1,
-    limit = 10,
     sort = "due_soon",
   } = filters;
+
+  const { page, limit } = normalizePagination(
+    filters.page ?? 1,
+    filters.limit ?? 10,
+  );
+
+  if (paymentStatus && !PAYMENT_STATUSES.includes(paymentStatus)) {
+    throw new AppError("Invalid payment status filter.", 400);
+  }
 
   const query = { user: userId };
 
   if (status) query.status = status;
   if (frequency) query.frequency = frequency;
+
+  if (search?.trim()) {
+    const searchRegex = new RegExp(escapeRegex(search.trim()), "i");
+
+    query.$or = [
+      { title: searchRegex },
+      { payee: searchRegex },
+      { description: searchRegex },
+    ];
+  }
 
   if (category) {
     if (!mongoose.isValidObjectId(category)) {
@@ -297,26 +403,18 @@ const getBills = async (userId, filters = {}) => {
     throw new AppError("Start date cannot be after end date.", 400);
   }
 
-  const dueExpression = getEffectiveDueDate();
+  const expressionConditions = [];
 
-  if (parsedStartDate || parsedEndDate) {
-    const conditions = [];
+  if (parsedStartDate) {
+    expressionConditions.push({
+      $gte: ["$dueDate", parsedStartDate],
+    });
+  }
 
-    if (parsedStartDate) {
-      conditions.push({
-        $gte: [dueExpression, parsedStartDate],
-      });
-    }
-
-    if (parsedEndDate) {
-      conditions.push({
-        $lt: [dueExpression, parsedEndDate],
-      });
-    }
-
-    query.$expr = {
-      $and: conditions,
-    };
+  if (parsedEndDate) {
+    expressionConditions.push({
+      $lt: ["$dueDate", parsedEndDate],
+    });
   }
 
   if (due) {
@@ -329,32 +427,30 @@ const getBills = async (userId, filters = {}) => {
     tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
     if (due === "today") {
-      query.$expr = {
-        $and: [
-          ...(query.$expr?.$and ?? []),
-          { $gte: [dueExpression, todayStart] },
-          { $lt: [dueExpression, tomorrowStart] },
-        ],
-      };
-    }
+      expressionConditions.push({
+        $gte: ["$dueDate", todayStart],
+      });
 
-    if (due === "overdue") {
-      query.$expr = {
-        $and: [
-          ...(query.$expr?.$and ?? []),
-          { $lt: [dueExpression, todayStart] },
-        ],
-      };
+      expressionConditions.push({
+        $lt: ["$dueDate", tomorrowStart],
+      });
+    } else if (due === "overdue") {
+      expressionConditions.push({
+        $lt: ["$dueDate", todayStart],
+      });
+    } else if (due === "upcoming") {
+      expressionConditions.push({
+        $gte: ["$dueDate", tomorrowStart],
+      });
+    } else {
+      throw new AppError("Invalid due date filter.", 400);
     }
+  }
 
-    if (due === "upcoming") {
-      query.$expr = {
-        $and: [
-          ...(query.$expr?.$and ?? []),
-          { $gte: [dueExpression, tomorrowStart] },
-        ],
-      };
-    }
+  if (expressionConditions.length > 0) {
+    query.$expr = {
+      $and: expressionConditions,
+    };
   }
 
   const sortOptions = {
@@ -365,18 +461,44 @@ const getBills = async (userId, filters = {}) => {
     amount_low: { amount: 1, _id: 1 },
   };
 
+  const selectedSort = sortOptions[sort] || sortOptions.due_soon;
+
+  let finalQuery = query;
+
+  if (paymentStatus) {
+    const candidateBills = await Bill.find(query)
+      .select("_id amount dueDate")
+      .lean();
+
+    const paymentStatusMap = await getPaymentStatusForBills(
+      userId,
+      candidateBills,
+    );
+
+    const matchingBillIds = candidateBills
+      .filter(
+        (bill) => paymentStatusMap.get(bill._id.toString()) === paymentStatus,
+      )
+      .map((bill) => bill._id);
+
+    finalQuery = {
+      ...query,
+      _id: { $in: matchingBillIds },
+    };
+  }
+
   const skip = (page - 1) * limit;
 
   const [bills, total] = await Promise.all([
-    Bill.find(query)
+    Bill.find(finalQuery)
       .populate("category", "name type icon color")
       .populate("wallet", "name type icon color status")
-      .sort(sortOptions[sort] || sortOptions.due_soon)
+      .sort(selectedSort)
       .skip(skip)
       .limit(limit)
       .lean(),
 
-    Bill.countDocuments(query),
+    Bill.countDocuments(finalQuery),
   ]);
 
   return {
@@ -460,11 +582,12 @@ const updateBill = async (userId, billId, updates) => {
   }
 
   const frequencyChanged = nextFrequency !== bill.frequency;
+
   const dueDateChanged = updates.dueDate !== undefined;
 
   const effectiveDueDate = updates.dueDate ?? bill.dueDate;
 
-  if (updates.nextDueDate !== undefined && nextFrequency !== "one_time") {
+  if (updates.nextDueDate instanceof Date && nextFrequency !== "one_time") {
     validateNextDueDate(updates.nextDueDate, effectiveDueDate);
   }
 
@@ -477,9 +600,10 @@ const updateBill = async (userId, billId, updates) => {
     dueDateChanged ||
     updates.nextDueDate !== undefined
   ) {
-    bill.nextDueDate = updates.nextDueDate
-      ? validateNextDueDate(updates.nextDueDate, bill.dueDate)
-      : calculateNextDueDate(bill.dueDate, nextFrequency);
+    bill.nextDueDate =
+      updates.nextDueDate instanceof Date
+        ? validateNextDueDate(updates.nextDueDate, bill.dueDate)
+        : calculateNextDueDate(bill.dueDate, nextFrequency);
 
     if (!bill.nextDueDate) {
       throw new AppError("Unable to calculate the next bill due date.", 500);

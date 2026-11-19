@@ -30,11 +30,7 @@ router
 router
   .route("/:id")
   .get(validateRequest(billIdSchema), getBillById)
-  .patch(
-    validateRequest(billIdSchema),
-    validateRequest(updateBillSchema),
-    updateBill,
-  );
+  .patch(validateRequest(updateBillSchema), updateBill);
 
 router.patch("/:id/archive", validateRequest(billIdSchema), archiveBill);
 

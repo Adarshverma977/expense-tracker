@@ -7,7 +7,7 @@ const billPaymentController = require("../controllers/billPaymentController");
 
 const {
   createBillPaymentSchema,
-  billPaymentQuerySchema,
+  getBillPaymentsSchema,
   billPaymentIdSchema,
 } = require("../validators/billPaymentValidator");
 
@@ -22,7 +22,7 @@ router
     billPaymentController.createBillPayment,
   )
   .get(
-    validateRequest(billPaymentQuerySchema),
+    validateRequest(getBillPaymentsSchema),
     billPaymentController.getBillPayments,
   );
 

@@ -25,6 +25,20 @@ const dateSchema = z.coerce.date({
   }),
 });
 
+const dateStringSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format.")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  }, "Invalid calendar date.");
+
 const frequencySchema = z.enum([
   "one_time",
   "weekly",
@@ -35,6 +49,8 @@ const frequencySchema = z.enum([
 
 const statusSchema = z.enum(["active", "paused", "archived"]);
 
+const billFilterStatusSchema = z.enum(["active", "paused", "paid", "archived"]);
+
 const reminderDaysSchema = z
   .array(z.number().int().min(0).max(30))
   .max(31)
@@ -43,7 +59,9 @@ const reminderDaysSchema = z
     "Reminder days must be unique.",
   );
 
-const createBillSchema = z
+const emptySchema = z.object({}).strict();
+
+const createBillBodySchema = z
   .object({
     title: z.string().trim().min(2).max(100),
 
@@ -90,7 +108,7 @@ const createBillSchema = z
     }
   });
 
-const updateBillSchema = z
+const updateBillBodySchema = z
   .object({
     title: z.string().trim().min(2).max(100).optional(),
 
@@ -145,9 +163,11 @@ const updateBillSchema = z
     }
   });
 
-const getBillsSchema = z
+const getBillsQuerySchema = z
   .object({
-    status: statusSchema.optional(),
+    search: z.string().trim().max(100, "Search is too long.").optional(),
+
+    status: billFilterStatusSchema.optional(),
 
     frequency: frequencySchema.optional(),
 
@@ -155,15 +175,9 @@ const getBillsSchema = z
 
     wallet: objectIdSchema.optional(),
 
-    startDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid start date.")
-      .optional(),
+    startDate: dateStringSchema.optional(),
 
-    endDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid end date.")
-      .optional(),
+    endDate: dateStringSchema.optional(),
 
     due: z.enum(["upcoming", "overdue", "today"]).optional(),
 
@@ -185,9 +199,43 @@ const getBillsSchema = z
     },
   );
 
-const billIdSchema = z.object({
-  id: objectIdSchema,
-});
+const billParamsSchema = z
+  .object({
+    id: objectIdSchema,
+  })
+  .strict();
+
+const createBillSchema = z
+  .object({
+    body: createBillBodySchema,
+    query: emptySchema,
+    params: emptySchema,
+  })
+  .strict();
+
+const updateBillSchema = z
+  .object({
+    body: updateBillBodySchema,
+    query: emptySchema,
+    params: billParamsSchema,
+  })
+  .strict();
+
+const getBillsSchema = z
+  .object({
+    body: emptySchema,
+    query: getBillsQuerySchema,
+    params: emptySchema,
+  })
+  .strict();
+
+const billIdSchema = z
+  .object({
+    body: emptySchema,
+    query: emptySchema,
+    params: billParamsSchema,
+  })
+  .strict();
 
 module.exports = {
   createBillSchema,

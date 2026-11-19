@@ -69,7 +69,6 @@ const validateAmount = (value) => {
 
 const addMonthsClamped = (date, months) => {
   const originalDate = new Date(date);
-
   const originalDay = originalDate.getUTCDate();
 
   const targetMonth = new Date(
@@ -159,9 +158,10 @@ const assertIdempotencyMatch = (existing, details) => {
   const matches =
     existing.bill.toString() === String(details.bill) &&
     existing.wallet.toString() === String(details.wallet) &&
-    existing.billDueDate.getTime() === details.billDueDate.getTime() &&
-    existing.paidAt.getTime() === details.paidAt.getTime() &&
-    toMinorUnits(existing.amount.toString()) === details.amountMinor;
+    toMinorUnits(existing.amount.toString()) === details.amountMinor &&
+    (details.paidAt === undefined ||
+      existing.paidAt.getTime() === details.paidAt.getTime()) &&
+    (existing.notes || "") === (details.notes || "");
 
   if (!matches) {
     throw new AppError(
@@ -203,10 +203,12 @@ const createBillPayment = async (userId, paymentData) => {
     bill: billId,
     wallet: walletId,
     amount,
-    paidAt = new Date(),
+    paidAt: paidAtInput,
     idempotencyKey,
     notes = "",
   } = paymentData;
+
+  const paidAt = paidAtInput === undefined ? undefined : paidAtInput;
 
   if (
     !mongoose.isValidObjectId(billId) ||
@@ -219,10 +221,18 @@ const createBillPayment = async (userId, paymentData) => {
     throw new AppError("Idempotency key is required.", 400);
   }
 
-  if (!(paidAt instanceof Date) || Number.isNaN(paidAt.getTime())) {
+  if (
+    paidAt !== undefined &&
+    (!(paidAt instanceof Date) || Number.isNaN(paidAt.getTime()))
+  ) {
     throw new AppError("Invalid payment date.", 400);
   }
 
+  if (typeof notes !== "string") {
+    throw new AppError("Invalid payment notes.", 400);
+  }
+
+  const effectivePaidAt = paidAt ?? new Date();
   const amountMinor = validateAmount(amount);
   const normalizedKey = idempotencyKey.trim();
 
@@ -239,7 +249,7 @@ const createBillPayment = async (userId, paymentData) => {
           wallet: walletId,
           amountMinor,
           paidAt,
-          billDueDate: existingPayment.billDueDate,
+          notes,
         });
       }
 
@@ -282,7 +292,6 @@ const createBillPayment = async (userId, paymentData) => {
       }
 
       const billDueDate = new Date(bill.dueDate);
-
       const billAmountMinor = toMinorUnits(bill.amount.toString());
 
       const alreadyPaid = await getPaidAmount(
@@ -317,7 +326,7 @@ const createBillPayment = async (userId, paymentData) => {
             type: "expense",
             category: category._id,
             description: notes || `Payment for bill: ${bill.title}`,
-            date: paidAt,
+            date: effectivePaidAt,
           },
         ],
         { session },
@@ -334,7 +343,7 @@ const createBillPayment = async (userId, paymentData) => {
             amount: mongoose.Types.Decimal128.fromString(
               fromMinorUnits(amountMinor),
             ),
-            paidAt,
+            paidAt: effectivePaidAt,
             status: "completed",
             idempotencyKey: normalizedKey,
             notes,
@@ -358,7 +367,7 @@ const createBillPayment = async (userId, paymentData) => {
 
       const totalPaid = alreadyPaid + amountMinor;
 
-      bill.lastPaidAt = paidAt;
+      bill.lastPaidAt = effectivePaidAt;
 
       if (totalPaid === billAmountMinor) {
         if (bill.frequency === "one_time") {
@@ -400,7 +409,7 @@ const createBillPayment = async (userId, paymentData) => {
             wallet: walletId,
             amountMinor,
             paidAt,
-            billDueDate: existingPayment.billDueDate,
+            notes,
           }),
         );
       }
@@ -481,7 +490,6 @@ const getBillPayments = async (userId, filters = {}) => {
   }
 
   const parsedStartDate = parseDateBoundary(startDate, "start date");
-
   const parsedEndDate = parseDateBoundary(endDate, "end date", true);
 
   if (parsedStartDate && parsedEndDate && parsedStartDate >= parsedEndDate) {
