@@ -1,0 +1,389 @@
+.bill-form {
+  --bill-form-bg: var(--surface, #ffffff);
+  --bill-form-border: var(--border-color, #e5e7eb);
+  --bill-form-text: var(--text-primary, #111827);
+  --bill-form-muted: var(--text-secondary, #6b7280);
+  --bill-form-input-bg: var(--input-bg, #f9fafb);
+  --bill-form-accent: var(--primary-color, #10b981);
+  --bill-form-accent-soft: var(--primary-light, #ecfdf5);
+  --bill-form-danger: var(--danger-color, #ef4444);
+
+  width: 100%;
+  min-width: 0;
+  color: var(--bill-form-text);
+}
+
+.bill-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.bill-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bill-form-full {
+  grid-column: 1 / -1;
+}
+
+.bill-form-field > label {
+  color: var(--bill-form-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bill-form-field > input,
+.bill-form-field > select,
+.bill-form-field > textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--bill-form-border);
+  border-radius: 10px;
+  background: var(--bill-form-input-bg);
+  color: var(--bill-form-text);
+  font-family: inherit;
+  font-size: 13px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.bill-form-field > input,
+.bill-form-field > select {
+  height: 44px;
+  padding: 0 12px;
+}
+
+.bill-form-field > select {
+  cursor: pointer;
+}
+
+.bill-form-field > textarea {
+  min-height: 100px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.bill-form-field > input::placeholder,
+.bill-form-field > textarea::placeholder {
+  color: var(--bill-form-muted);
+  opacity: 0.75;
+}
+
+.bill-form-field > input:hover,
+.bill-form-field > select:hover,
+.bill-form-field > textarea:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--bill-form-accent) 50%,
+    var(--bill-form-border)
+  );
+}
+
+.bill-form-field > input:focus-visible,
+.bill-form-field > select:focus-visible,
+.bill-form-field > textarea:focus-visible {
+  outline: none;
+  border-color: var(--bill-form-accent);
+  box-shadow: 0 0 0 3px color-mix(
+    in srgb,
+    var(--bill-form-accent) 14%,
+    transparent
+  );
+}
+
+.bill-input-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--bill-form-border);
+  border-radius: 10px;
+  background: var(--bill-form-input-bg);
+  color: var(--bill-form-muted);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.bill-input-with-icon > svg {
+  flex-shrink: 0;
+  color: var(--bill-form-muted);
+}
+
+.bill-input-with-icon input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--bill-form-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.bill-input-with-icon input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.bill-input-with-icon:focus-within {
+  border-color: var(--bill-form-accent);
+  box-shadow: 0 0 0 3px color-mix(
+    in srgb,
+    var(--bill-form-accent) 14%,
+    transparent
+  );
+}
+
+.bill-input-with-icon input::placeholder {
+  color: var(--bill-form-muted);
+  opacity: 0.75;
+}
+
+.bill-input-with-icon input[type="date"] {
+  color-scheme: light;
+}
+
+.bill-reminder-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.bill-reminder-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--bill-form-border);
+  border-radius: 10px;
+  background: var(--bill-form-input-bg);
+  color: var(--bill-form-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.bill-reminder-option:hover {
+  border-color: var(--bill-form-accent);
+}
+
+.bill-reminder-option:has(input:checked) {
+  border-color: var(--bill-form-accent);
+  background: var(--bill-form-accent-soft);
+  color: var(--bill-form-accent);
+}
+
+.bill-reminder-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--bill-form-accent);
+  cursor: pointer;
+}
+
+.bill-reminder-option input:focus-visible {
+  outline: 2px solid var(--bill-form-accent);
+  outline-offset: 3px;
+}
+
+.bill-form-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--bill-form-danger) 25%,
+    transparent
+  );
+  border-radius: 10px;
+  background: color-mix(
+    in srgb,
+    var(--bill-form-danger) 8%,
+    transparent
+  );
+  color: var(--bill-form-danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bill-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bill-form-border);
+}
+
+.bill-form-cancel,
+.bill-form-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.bill-form-cancel {
+  border: 1px solid var(--bill-form-border);
+  background: transparent;
+  color: var(--bill-form-text);
+}
+
+.bill-form-cancel:hover:not(:disabled) {
+  background: var(--bill-form-input-bg);
+  border-color: var(--bill-form-muted);
+}
+
+.bill-form-submit {
+  border: 1px solid var(--bill-form-accent);
+  background: var(--bill-form-accent);
+  color: #ffffff;
+}
+
+.bill-form-submit:hover:not(:disabled) {
+  box-shadow: 0 4px 12px color-mix(
+    in srgb,
+    var(--bill-form-accent) 25%,
+    transparent
+  );
+}
+
+.bill-form-cancel:focus-visible,
+.bill-form-submit:focus-visible {
+  outline: 2px solid var(--bill-form-accent);
+  outline-offset: 3px;
+}
+
+.bill-form-cancel:disabled,
+.bill-form-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dark .bill-form,
+[data-theme="dark"] .bill-form,
+body.dark .bill-form {
+  --bill-form-bg: var(--surface, #171b24);
+  --bill-form-border: var(--border-color, #2b3240);
+  --bill-form-text: var(--text-primary, #f3f4f6);
+  --bill-form-muted: var(--text-secondary, #9ca3af);
+  --bill-form-input-bg: var(--input-bg, #202633);
+  --bill-form-accent: var(--primary-color, #34d399);
+  --bill-form-accent-soft: rgba(52, 211, 153, 0.12);
+  --bill-form-danger: var(--danger-color, #f87171);
+}
+
+.dark .bill-form-field > input,
+.dark .bill-form-field > select,
+.dark .bill-form-field > textarea,
+.dark .bill-input-with-icon,
+.dark .bill-reminder-option,
+[data-theme="dark"] .bill-form-field > input,
+[data-theme="dark"] .bill-form-field > select,
+[data-theme="dark"] .bill-form-field > textarea,
+[data-theme="dark"] .bill-input-with-icon,
+[data-theme="dark"] .bill-reminder-option,
+body.dark .bill-form-field > input,
+body.dark .bill-form-field > select,
+body.dark .bill-form-field > textarea,
+body.dark .bill-input-with-icon,
+body.dark .bill-reminder-option {
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  .bill-form-grid {
+    gap: 16px;
+  }
+
+  .bill-form-actions {
+    margin-top: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bill-form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .bill-form-full {
+    grid-column: auto;
+  }
+
+  .bill-form-field > input,
+  .bill-form-field > select,
+  .bill-input-with-icon {
+    height: 42px;
+  }
+
+  .bill-form-field > textarea {
+    min-height: 90px;
+  }
+
+  .bill-reminder-options {
+    gap: 8px;
+  }
+
+  .bill-reminder-option {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .bill-form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .bill-form-cancel,
+  .bill-form-submit {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bill-form *,
+  .bill-form *::before,
+  .bill-form *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -313,6 +313,13 @@
   transform: scale(0.97);
 }
 
+.bill-pay-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
 .bill-card button:focus-visible {
   outline: 3px solid color-mix(
     in srgb,
@@ -426,6 +433,10 @@ body.dark .bill-status-upcoming {
     margin-top: 16px;
     padding-top: 13px;
   }
+
+  .bill-card-header {
+  flex-wrap: wrap;
+}
 
   .bill-card-footer {
     margin-top: 14px;

@@ -1,4 +1,3 @@
-
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Pencil,
@@ -28,12 +27,14 @@ const parseMinorUnits = (value) => {
   if (!amount || amount.length > 100) return null;
 
   const match = amount.match(
-    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/,
   );
 
   if (!match) return null;
 
-  const [, sign, whole, fraction = "", exponentText = "0"] = match;
+  const [, sign, whole, fraction = "", exponentText = "0"] =
+    match;
+
   const exponent = Number(exponentText);
 
   if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) {
@@ -70,13 +71,18 @@ const formatCurrency = (value) => {
   if (minorUnits === null) return "₹0.00";
 
   const isNegative = minorUnits < 0n;
-  const absoluteAmount = isNegative ? -minorUnits : minorUnits;
+  const absoluteAmount = isNegative
+    ? -minorUnits
+    : minorUnits;
 
   const whole = absoluteAmount / 100n;
-  const fraction = String(absoluteAmount % 100n).padStart(2, "0");
+  const fraction = String(absoluteAmount % 100n).padStart(
+    2,
+    "0",
+  );
 
   const formattedWhole = INTEGER_CURRENCY_FORMATTER.format(
-    isNegative ? -whole : whole
+    isNegative ? -whole : whole,
   );
 
   return `${formattedWhole}.${fraction}`;
@@ -90,6 +96,26 @@ const parseCalendarDate = (value) => {
     /^\d{4}-\d{2}-\d{2}$/.test(value)
   ) {
     const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date;
+  }
+
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T/.test(value)
+  ) {
+    const datePart = value.slice(0, 10);
+    const [year, month, day] = datePart.split("-").map(Number);
+
     const date = new Date(year, month - 1, day);
 
     if (
@@ -132,13 +158,13 @@ const getDaysUntilDue = (dueDate) => {
   const dueDay = Date.UTC(
     due.getFullYear(),
     due.getMonth(),
-    due.getDate()
+    due.getDate(),
   );
 
   const todayDay = Date.UTC(
     today.getFullYear(),
     today.getMonth(),
-    today.getDate()
+    today.getDate(),
   );
 
   return Math.round((dueDay - todayDay) / 86400000);
@@ -218,7 +244,11 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
   if (!bill) return null;
 
   const daysUntilDue = getDaysUntilDue(bill.dueDate);
-  const status = getStatusDetails(bill.status, daysUntilDue);
+  const status = getStatusDetails(
+    bill.status,
+    daysUntilDue,
+  );
+
   const StatusIcon = status.Icon;
 
   const category =
@@ -236,8 +266,21 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
       ? bill.title.trim()
       : "Untitled bill";
 
-  const categoryName = category.name || "Uncategorized";
-  const categoryColor = category.color || "var(--color-primary)";
+  const payee =
+    typeof bill.payee === "string" && bill.payee.trim()
+      ? bill.payee.trim()
+      : null;
+
+  const categoryName =
+    typeof category.name === "string" && category.name.trim()
+      ? category.name.trim()
+      : "Uncategorized";
+
+  const categoryColor =
+    typeof category.color === "string" &&
+      category.color.trim()
+      ? category.color
+      : "var(--color-primary)";
 
   const isPayable = bill.status === "active";
   const isArchived = bill.status === "archived";
@@ -247,7 +290,8 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
     daysUntilDue === null
       ? "Due date unavailable"
       : daysUntilDue < 0
-        ? `${Math.abs(daysUntilDue)} days overdue`
+        ? `${Math.abs(daysUntilDue)} ${Math.abs(daysUntilDue) === 1 ? "day" : "days"
+        } overdue`
         : daysUntilDue === 0
           ? "Due today"
           : daysUntilDue === 1
@@ -278,7 +322,7 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
 
           <div className="bill-card-title-info">
             <h3 title={title}>{title}</h3>
-            <span>{bill.payee || categoryName}</span>
+            <span>{payee || categoryName}</span>
           </div>
         </div>
 
@@ -350,7 +394,9 @@ const BillCard = ({ bill, onEdit, onArchive, onPay }) => {
       </div>
 
       <div className="bill-card-footer">
-        <div className={`bill-status bill-status-${status.className}`}>
+        <div
+          className={`bill-status bill-status-${status.className}`}
+        >
           <StatusIcon size={15} />
           <span>{status.label}</span>
         </div>

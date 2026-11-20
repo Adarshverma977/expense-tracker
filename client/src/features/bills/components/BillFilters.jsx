@@ -1,6 +1,10 @@
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Search, SlidersHorizontal, X } from "lucide-react";
+import "./BillFilters.css";
+
+const getFilterValue = (value) =>
+  typeof value === "string" ? value : "";
 
 function BillFilters({
   filters = {},
@@ -9,24 +13,38 @@ function BillFilters({
   onChange,
   onReset,
 }) {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+
+  const safeFiltersObject =
+    filters && typeof filters === "object" && !Array.isArray(filters)
+      ? filters
+      : {};
+
   const safeCategories = Array.isArray(categories)
-    ? categories.filter(Boolean)
+    ? categories.filter(
+      (category) =>
+        category &&
+        typeof category === "object" &&
+        category.type === "expense",
+    )
     : [];
 
   const safeWallets = Array.isArray(wallets)
-    ? wallets.filter(Boolean)
+    ? wallets.filter(
+      (wallet) => wallet && typeof wallet === "object",
+    )
     : [];
 
   const safeFilters = {
-    status: filters.status || "",
-    paymentStatus: filters.paymentStatus || "",
-    frequency: filters.frequency || "",
-    category: filters.category || "",
-    wallet: filters.wallet || "",
-    due: filters.due || "",
-    startDate: filters.startDate || "",
-    endDate: filters.endDate || "",
-    search: filters.search || "",
+    status: getFilterValue(safeFiltersObject.status),
+    paymentStatus: getFilterValue(safeFiltersObject.paymentStatus),
+    frequency: getFilterValue(safeFiltersObject.frequency),
+    category: getFilterValue(safeFiltersObject.category),
+    wallet: getFilterValue(safeFiltersObject.wallet),
+    due: getFilterValue(safeFiltersObject.due),
+    startDate: getFilterValue(safeFiltersObject.startDate),
+    endDate: getFilterValue(safeFiltersObject.endDate),
+    search: getFilterValue(safeFiltersObject.search),
   };
 
   const activeFilterCount = [
@@ -43,13 +61,11 @@ function BillFilters({
 
   const hasFilters = activeFilterCount > 0;
 
-  const filteredCategories = safeCategories.filter(
-    (category) => category.type === "expense"
-  );
-
   const updateFilter = (key, value) => {
+    if (typeof onChange !== "function") return;
+
     const nextFilters = {
-      ...filters,
+      ...safeFiltersObject,
       [key]: value,
       page: 1,
     };
@@ -72,30 +88,52 @@ function BillFilters({
       nextFilters.startDate = "";
     }
 
-    onChange?.(nextFilters);
+    onChange(nextFilters);
   };
+
+  const animationProps = shouldReduceMotion
+    ? {
+      initial: false,
+      animate: undefined,
+      exit: undefined,
+      transition: { duration: 0 },
+    }
+    : {};
 
   return (
     <motion.section
       className="bill-filters"
-      initial={{ opacity: 0, y: 15 }}
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.12 }}
+      transition={
+        shouldReduceMotion
+          ? { duration: 0 }
+          : { duration: 0.4, delay: 0.12 }
+      }
       aria-label="Bill filters"
     >
       <div className="bill-filter-heading">
         <div className="bill-filter-title">
-          <SlidersHorizontal size={17} />
+          <SlidersHorizontal size={17} aria-hidden="true" />
           <span>Filters</span>
 
           <AnimatePresence>
             {hasFilters && (
               <motion.span
                 className="bill-filter-count"
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.7 }}
                 key={activeFilterCount}
+                {...animationProps}
+                initial={
+                  shouldReduceMotion
+                    ? false
+                    : { opacity: 0, scale: 0.7 }
+                }
+                animate={{ opacity: 1, scale: 1 }}
+                exit={
+                  shouldReduceMotion
+                    ? undefined
+                    : { opacity: 0, scale: 0.7 }
+                }
               >
                 {activeFilterCount} active
               </motion.span>
@@ -108,14 +146,27 @@ function BillFilters({
             <motion.button
               type="button"
               className="bill-reset-button"
-              initial={{ opacity: 0, x: 8 }}
+              {...animationProps}
+              initial={
+                shouldReduceMotion
+                  ? false
+                  : { opacity: 0, x: 8 }
+              }
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
+              exit={
+                shouldReduceMotion
+                  ? undefined
+                  : { opacity: 0, x: 8 }
+              }
               onClick={() => onReset?.()}
-              whileHover={{ x: -2 }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={
+                shouldReduceMotion ? undefined : { x: -2 }
+              }
+              whileTap={
+                shouldReduceMotion ? undefined : { scale: 0.96 }
+              }
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
               Clear all
             </motion.button>
           )}
@@ -123,11 +174,8 @@ function BillFilters({
       </div>
 
       <div className="bill-filter-grid">
-        <motion.label
-          className="bill-search-field"
-          whileFocus={{ scale: 1.01 }}
-        >
-          <Search size={17} />
+        <label className="bill-search-field">
+          <Search size={17} aria-hidden="true" />
 
           <input
             type="search"
@@ -146,10 +194,10 @@ function BillFilters({
               aria-label="Clear search"
               onClick={() => updateFilter("search", "")}
             >
-              <X size={15} />
+              <X size={15} aria-hidden="true" />
             </button>
           )}
-        </motion.label>
+        </label>
 
         <select
           value={safeFilters.status}
@@ -201,13 +249,13 @@ function BillFilters({
         >
           <option value="">All categories</option>
 
-          {filteredCategories.map((category) => {
+          {safeCategories.map((category) => {
             const categoryId = category._id || category.id;
 
             if (!categoryId) return null;
 
             return (
-              <option key={categoryId} value={categoryId}>
+              <option key={categoryId} value={String(categoryId)}>
                 {category.name || "Unnamed category"}
               </option>
             );
@@ -229,7 +277,7 @@ function BillFilters({
             if (!walletId) return null;
 
             return (
-              <option key={walletId} value={walletId}>
+              <option key={walletId} value={String(walletId)}>
                 {wallet.name || "Unnamed wallet"}
               </option>
             );

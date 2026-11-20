@@ -1,11 +1,15 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Archive,
   Plus,
   RefreshCw,
   ReceiptText,
+  AlertCircle,
+  FileText,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import {
@@ -42,6 +46,8 @@ const INITIAL_FILTERS = {
   limit: 10,
   sort: "due_soon",
 };
+
+const HISTORY_PAGE_SIZE = 10;
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message ||
@@ -85,11 +91,25 @@ const BillPage = () => {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
+  const [historyPagination, setHistoryPagination] = useState({
+    page: 1,
+    limit: HISTORY_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+
   const [refreshKey, setRefreshKey] = useState(0);
 
   const requestIdRef = useRef(0);
   const historyRequestIdRef = useRef(0);
   const historyBillRef = useRef(null);
+  const historyPageRef = useRef(1);
+
+  const historyModalRef = useRef(null);
+  const historyCloseButtonRef = useRef(null);
+  const previousHistoryFocusRef = useRef(null);
 
   historyBillRef.current = historyBill;
 
@@ -133,7 +153,10 @@ const BillPage = () => {
 
     try {
       setError("");
-      setIsLoading(true);
+
+      if (!isRefreshing) {
+        setIsLoading(true);
+      }
 
       const cleanedFilters = Object.fromEntries(
         Object.entries({
@@ -153,13 +176,35 @@ const BillPage = () => {
 
       const result = response?.data || {};
 
-      setBills(Array.isArray(result.bills) ? result.bills : []);
+      const fetchedBills = Array.isArray(result.bills)
+        ? result.bills
+        : [];
+
+      const serverPagination = result.pagination || {};
+
+      const serverTotalPages = serverPagination.totalPages ?? 1;
+      const serverPage = serverPagination.page ?? filters.page;
+
+      if (
+        fetchedBills.length === 0 &&
+        serverTotalPages > 0 &&
+        serverPage > serverTotalPages
+      ) {
+        setFilters((current) => ({
+          ...current,
+          page: serverTotalPages,
+        }));
+
+        return;
+      }
+
+      setBills(fetchedBills);
 
       setPagination({
-        page: result.pagination?.page ?? filters.page,
-        limit: result.pagination?.limit ?? filters.limit,
-        total: result.pagination?.total ?? 0,
-        totalPages: result.pagination?.totalPages ?? 1,
+        page: serverPage,
+        limit: serverPagination.limit ?? filters.limit,
+        total: serverPagination.total ?? 0,
+        totalPages: serverTotalPages,
       });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
@@ -178,27 +223,50 @@ const BillPage = () => {
         setIsRefreshing(false);
       }
     }
-  }, [requestFilters, debouncedSearch, filters.page, filters.limit]);
+  }, [
+    requestFilters,
+    debouncedSearch,
+    filters.page,
+    filters.limit,
+    isRefreshing,
+  ]);
 
   const fetchDependencies = useCallback(async () => {
-    try {
-      setDependencyError("");
+    const results = await Promise.allSettled([
+      getCategories(),
+      getWallets({ status: "active" }),
+    ]);
 
-      const [categoryResponse, walletResponse] = await Promise.all([
-        getCategories(),
-        getWallets({ status: "active" }),
-      ]);
+    const [categoryResult, walletResult] = results;
+    const dependencyMessages = [];
 
-      setCategories(categoryResponse?.data?.categories || []);
-      setWallets(walletResponse?.data?.wallets || []);
-    } catch (err) {
-      setDependencyError(
+    if (categoryResult.status === "fulfilled") {
+      setCategories(
+        categoryResult.value?.data?.categories || [],
+      );
+    } else {
+      dependencyMessages.push(
         getErrorMessage(
-          err,
-          "Unable to load categories and wallets.",
+          categoryResult.reason,
+          "Unable to load categories.",
         ),
       );
     }
+
+    if (walletResult.status === "fulfilled") {
+      setWallets(
+        walletResult.value?.data?.wallets || [],
+      );
+    } else {
+      dependencyMessages.push(
+        getErrorMessage(
+          walletResult.reason,
+          "Unable to load wallets.",
+        ),
+      );
+    }
+
+    setDependencyError(dependencyMessages.join(" "));
   }, []);
 
   useEffect(() => {
@@ -223,6 +291,8 @@ const BillPage = () => {
   };
 
   const handleRefresh = () => {
+    if (isLoading || isRefreshing) return;
+
     setIsRefreshing(true);
     setRefreshKey((current) => current + 1);
   };
@@ -247,6 +317,7 @@ const BillPage = () => {
   const handleBillSubmit = async (formData) => {
     try {
       setIsSubmitting(true);
+      setError("");
 
       if (editingBill) {
         await updateBill(editingBill._id, formData);
@@ -265,10 +336,11 @@ const BillPage = () => {
   };
 
   const handleArchiveBill = async () => {
-    if (!archivingBill) return;
+    if (!archivingBill || isArchiving) return;
 
     try {
       setIsArchiving(true);
+      setError("");
 
       await archiveBill(archivingBill._id);
 
@@ -286,46 +358,120 @@ const BillPage = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const fetchPaymentHistory = useCallback(async (bill) => {
-    if (!bill?._id) return;
+  const closePaymentModal = () => {
+    if (isPaying) return;
 
-    const requestId = ++historyRequestIdRef.current;
+    setIsPaymentModalOpen(false);
+    setSelectedBill(null);
+  };
 
-    try {
-      setHistoryError("");
-      setIsHistoryLoading(true);
+  const fetchPaymentHistory = useCallback(
+    async (bill, page = 1) => {
+      if (!bill?._id) return;
 
-      const response = await getBillPayments({
-        bill: bill._id,
-        page: 1,
-        limit: 100,
-        sort: "newest",
-      });
+      const requestId = ++historyRequestIdRef.current;
 
-      if (requestId !== historyRequestIdRef.current) return;
+      historyPageRef.current = page;
 
-      const result = response?.data || {};
+      try {
+        setHistoryError("");
+        setIsHistoryLoading(true);
 
-      setPayments(
-        Array.isArray(result.payments) ? result.payments : [],
-      );
-    } catch (err) {
-      if (requestId !== historyRequestIdRef.current) return;
+        const response = await getBillPayments({
+          bill: bill._id,
+          page,
+          limit: HISTORY_PAGE_SIZE,
+          sort: "newest",
+        });
 
-      setHistoryError(
-        getErrorMessage(err, "Unable to load payment history."),
-      );
-      setPayments([]);
-    } finally {
-      if (requestId === historyRequestIdRef.current) {
-        setIsHistoryLoading(false);
+        if (requestId !== historyRequestIdRef.current) return;
+
+        const result = response?.data || {};
+        const resultPagination = result.pagination || {};
+
+        const fetchedPayments = Array.isArray(result.payments)
+          ? result.payments
+          : [];
+
+        const totalPages = resultPagination.totalPages ?? 0;
+        const serverPage = resultPagination.page ?? page;
+
+        if (
+          fetchedPayments.length === 0 &&
+          totalPages > 0 &&
+          page > totalPages
+        ) {
+          const correctedPage = totalPages;
+
+          historyPageRef.current = correctedPage;
+
+          const correctedResponse = await getBillPayments({
+            bill: bill._id,
+            page: correctedPage,
+            limit: HISTORY_PAGE_SIZE,
+            sort: "newest",
+          });
+
+          if (requestId !== historyRequestIdRef.current) return;
+
+          const correctedResult = correctedResponse?.data || {};
+          const correctedPagination =
+            correctedResult.pagination || {};
+
+          setPayments(
+            Array.isArray(correctedResult.payments)
+              ? correctedResult.payments
+              : [],
+          );
+
+          setHistoryPagination({
+            page: correctedPagination.page ?? correctedPage,
+            limit: correctedPagination.limit ?? HISTORY_PAGE_SIZE,
+            total: correctedPagination.total ?? 0,
+            totalPages: correctedPagination.totalPages ?? 0,
+            hasNextPage: correctedPagination.hasNextPage ?? false,
+            hasPreviousPage:
+              correctedPagination.hasPreviousPage ?? correctedPage > 1,
+          });
+
+          return;
+        }
+
+        setPayments(fetchedPayments);
+
+        setHistoryPagination({
+          page: serverPage,
+          limit: resultPagination.limit ?? HISTORY_PAGE_SIZE,
+          total: resultPagination.total ?? 0,
+          totalPages,
+          hasNextPage: resultPagination.hasNextPage ?? false,
+          hasPreviousPage:
+            resultPagination.hasPreviousPage ?? serverPage > 1,
+        });
+      } catch (err) {
+        if (requestId !== historyRequestIdRef.current) return;
+
+        setHistoryError(
+          getErrorMessage(
+            err,
+            "Unable to load payment history.",
+          ),
+        );
+
+        setPayments([]);
+      } finally {
+        if (requestId === historyRequestIdRef.current) {
+          setIsHistoryLoading(false);
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
   const handlePaymentSubmit = async (paymentData) => {
     try {
       setIsPaying(true);
+      setError("");
 
       await createBillPayment(paymentData);
 
@@ -336,10 +482,12 @@ const BillPage = () => {
       const currentHistoryBill = historyBillRef.current;
 
       if (currentHistoryBill?._id === paymentData.bill) {
-        await fetchPaymentHistory(currentHistoryBill);
+        await fetchPaymentHistory(currentHistoryBill, 1);
       }
     } catch (err) {
-      setError(getErrorMessage(err, "Unable to record payment."));
+      setError(
+        getErrorMessage(err, "Unable to record payment."),
+      );
     } finally {
       setIsPaying(false);
     }
@@ -347,30 +495,73 @@ const BillPage = () => {
 
   const openPaymentHistory = (bill) => {
     historyRequestIdRef.current += 1;
+    historyPageRef.current = 1;
+
+    previousHistoryFocusRef.current = document.activeElement;
 
     setHistoryBill(bill);
     setPayments([]);
     setHistoryError("");
     setIsHistoryLoading(true);
 
-    fetchPaymentHistory(bill);
+    setHistoryPagination({
+      page: 1,
+      limit: HISTORY_PAGE_SIZE,
+      total: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    fetchPaymentHistory(bill, 1);
   };
 
   const closePaymentHistory = () => {
     historyRequestIdRef.current += 1;
+    historyPageRef.current = 1;
+
     setHistoryBill(null);
     setPayments([]);
     setHistoryError("");
     setIsHistoryLoading(false);
+
+    setHistoryPagination({
+      page: 1,
+      limit: HISTORY_PAGE_SIZE,
+      total: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
   };
 
   const handleRetryHistory = () => {
     if (historyBill) {
-      fetchPaymentHistory(historyBill);
+      fetchPaymentHistory(historyBill, historyPageRef.current);
     }
   };
 
+  const handleHistoryPageChange = (page) => {
+    if (!historyBill || isHistoryLoading) return;
+
+    if (
+      page < 1 ||
+      page > historyPagination.totalPages
+    ) {
+      return;
+    }
+
+    fetchPaymentHistory(historyBill, page);
+  };
+
   const handlePageChange = (page) => {
+    if (
+      page < 1 ||
+      page > pagination.totalPages
+    ) {
+      return;
+    }
+
     setFilters((current) => ({
       ...current,
       page,
@@ -380,20 +571,82 @@ const BillPage = () => {
   useEffect(() => {
     if (!historyBill) return;
 
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const focusTimer = requestAnimationFrame(() => {
+      historyCloseButtonRef.current?.focus();
+    });
+
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         closePaymentHistory();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const modal = historyModalRef.current;
+
+      if (!modal) return;
+
+      const focusableElements = modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+
+      const elements = Array.from(focusableElements);
+
+      if (!elements.length) {
+        event.preventDefault();
+        modal.focus();
+        return;
+      }
+
+      const firstElement = elements[0];
+      const lastElement = elements[elements.length - 1];
+
+      if (
+        event.shiftKey &&
+        (document.activeElement === firstElement ||
+          !modal.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === lastElement ||
+          !modal.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        firstElement.focus();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      cancelAnimationFrame(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
     };
   }, [historyBill]);
 
-  const visibleError = error || dependencyError;
+  useEffect(() => {
+    if (historyBill) return;
+
+    const previousFocus = previousHistoryFocusRef.current;
+
+    if (previousFocus?.isConnected) {
+      previousFocus.focus();
+    }
+  }, [historyBill]);
+
+  const visibleError = [error, dependencyError]
+    .filter(Boolean)
+    .join(" ");
+
+  const hasSearch = filters.search.trim().length > 0;
 
   return (
     <motion.main
@@ -402,7 +655,7 @@ const BillPage = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="bill-page-header">
+      <section className="bill-page-header">
         <div className="bill-page-heading">
           <span className="bill-page-eyebrow">
             FINANCIAL MANAGEMENT
@@ -411,7 +664,7 @@ const BillPage = () => {
           <h1>Bills & Payments</h1>
 
           <p>
-            Manage your recurring bills, upcoming payments and payment history.
+            Manage recurring bills, upcoming payments and payment history.
           </p>
         </div>
 
@@ -422,6 +675,7 @@ const BillPage = () => {
             onClick={handleRefresh}
             disabled={isLoading || isRefreshing}
             aria-label="Refresh bills"
+            title="Refresh bills"
           >
             <RefreshCw
               size={17}
@@ -438,135 +692,217 @@ const BillPage = () => {
             <span>Add Bill</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <BillFilters
-        filters={filters}
-        categories={categories}
-        wallets={wallets}
-        onChange={handleFilterChange}
-        onReset={handleResetFilters}
-      />
+      <section className="bill-filter-section">
+        <BillFilters
+          filters={filters}
+          categories={categories}
+          wallets={wallets}
+          onChange={handleFilterChange}
+          onReset={handleResetFilters}
+        />
+      </section>
 
-      {visibleError && (
-        <div className="bill-error-alert" role="alert">
-          <span>{visibleError}</span>
-
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setDependencyError("");
-            }}
-            aria-label="Dismiss error"
+      <AnimatePresence>
+        {visibleError && (
+          <motion.div
+            className="bill-error-alert"
+            role="alert"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
           >
-            ×
-          </button>
-        </div>
-      )}
-
-      <div className="bill-results-heading">
-        <div>
-          <h2>Your Bills</h2>
-          <span>
-            {pagination.total} {pagination.total === 1 ? "bill" : "bills"}
-          </span>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="bill-list">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div className="bill-card-skeleton" key={index}>
-              <div className="bill-skeleton-circle" />
-              <div className="bill-skeleton-content">
-                <div className="bill-skeleton-line bill-skeleton-title" />
-                <div className="bill-skeleton-line bill-skeleton-subtitle" />
-              </div>
-              <div className="bill-skeleton-line bill-skeleton-amount" />
+            <div className="bill-error-icon">
+              <AlertCircle size={17} />
             </div>
-          ))}
-        </div>
-      ) : bills.length > 0 ? (
-        <>
-          <div className="bill-list">
-            {bills.map((bill) => (
-              <div className="bill-list-item" key={bill._id}>
-                <BillCard
-                  bill={bill}
-                  onEdit={openEditModal}
-                  onArchive={setArchivingBill}
-                  onPay={openPaymentModal}
-                />
 
-                <button
-                  type="button"
-                  className="bill-history-trigger"
-                  onClick={() => openPaymentHistory(bill)}
-                >
-                  <ReceiptText size={15} />
-                  Payment history
-                </button>
+            <span>{visibleError}</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setDependencyError("");
+              }}
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <section className="bill-results-section">
+        <div className="bill-results-heading">
+          <div className="bill-results-title">
+            <div className="bill-results-icon">
+              <FileText size={18} />
+            </div>
+
+            <div>
+              <h2>Your Bills</h2>
+              <p>
+                {pagination.total}{" "}
+                {pagination.total === 1 ? "bill" : "bills"} found
+              </p>
+            </div>
+          </div>
+
+          {isRefreshing && (
+            <span className="bill-refresh-status">
+              <RefreshCw size={13} />
+              Updating
+            </span>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div
+            className="bill-list bill-skeleton-list"
+            aria-label="Loading bills"
+          >
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div className="bill-card-skeleton" key={index}>
+                <div className="bill-skeleton-circle" />
+
+                <div className="bill-skeleton-content">
+                  <div className="bill-skeleton-line bill-skeleton-title" />
+                  <div className="bill-skeleton-line bill-skeleton-subtitle" />
+                  <div className="bill-skeleton-line bill-skeleton-detail" />
+                </div>
+
+                <div className="bill-skeleton-side">
+                  <div className="bill-skeleton-line bill-skeleton-amount" />
+                  <div className="bill-skeleton-line bill-skeleton-action" />
+                </div>
               </div>
             ))}
           </div>
+        ) : bills.length > 0 ? (
+          <>
+            <div className="bill-list">
+              {bills.map((bill, index) => (
+                <motion.div
+                  className="bill-list-item"
+                  key={bill._id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    delay: Math.min(index * 0.035, 0.2),
+                  }}
+                >
+                  <BillCard
+                    bill={bill}
+                    onEdit={openEditModal}
+                    onArchive={setArchivingBill}
+                    onPay={openPaymentModal}
+                  />
 
-          {pagination.totalPages > 1 && (
-            <div className="bill-pagination">
-              <button
-                type="button"
-                disabled={pagination.page <= 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
-              >
-                Previous
-              </button>
-
-              <span>
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-
-              <button
-                type="button"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => handlePageChange(pagination.page + 1)}
-              >
-                Next
-              </button>
+                  <button
+                    type="button"
+                    className="bill-history-trigger"
+                    onClick={() => openPaymentHistory(bill)}
+                  >
+                    <ReceiptText size={15} />
+                    <span>Payment history</span>
+                  </button>
+                </motion.div>
+              ))}
             </div>
-          )}
-        </>
-      ) : (
-        <div className="bill-empty-state">
-          <div className="bill-empty-icon">
-            {filters.search ? (
-              <ReceiptText size={25} />
-            ) : (
-              <Archive size={25} />
+
+            {pagination.totalPages > 1 && (
+              <nav
+                className="bill-pagination"
+                aria-label="Bills pagination"
+              >
+                <button
+                  type="button"
+                  className="bill-pagination-button"
+                  disabled={pagination.page <= 1}
+                  onClick={() =>
+                    handlePageChange(pagination.page - 1)
+                  }
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={17} />
+                  <span>Previous</span>
+                </button>
+
+                <div className="bill-pagination-info">
+                  <span className="bill-pagination-current">
+                    {pagination.page}
+                  </span>
+                  <span className="bill-pagination-divider">/</span>
+                  <span>{pagination.totalPages}</span>
+                  <span className="bill-pagination-label">pages</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="bill-pagination-button"
+                  disabled={
+                    pagination.page >= pagination.totalPages
+                  }
+                  onClick={() =>
+                    handlePageChange(pagination.page + 1)
+                  }
+                  aria-label="Next page"
+                >
+                  <span>Next</span>
+                  <ChevronRight size={17} />
+                </button>
+              </nav>
             )}
-          </div>
+          </>
+        ) : (
+          <motion.div
+            className="bill-empty-state"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="bill-empty-icon">
+              {hasSearch ? (
+                <Search size={24} />
+              ) : (
+                <Archive size={24} />
+              )}
+            </div>
 
-          <h3>
-            {filters.search ? "No matching bills" : "No bills found"}
-          </h3>
+            <h3>
+              {hasSearch
+                ? "No matching bills"
+                : "No bills found"}
+            </h3>
 
-          <p>
-            {filters.search
-              ? "Try another search term or reset your filters."
-              : "Create your first bill to start tracking upcoming payments."}
-          </p>
+            <p>
+              {hasSearch
+                ? "We couldn't find any bills matching your search or filters."
+                : "Start tracking your expenses by adding your first bill."}
+            </p>
 
-          {!filters.search && (
-            <button
-              type="button"
-              className="bill-create-button"
-              onClick={openCreateModal}
-            >
-              <Plus size={18} />
-              Add your first bill
-            </button>
-          )}
-        </div>
-      )}
+            {hasSearch ? (
+              <button
+                type="button"
+                className="bill-empty-reset-button"
+                onClick={handleResetFilters}
+              >
+                Reset filters
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="bill-create-button bill-empty-create-button"
+                onClick={openCreateModal}
+              >
+                <Plus size={18} />
+                <span>Add your first bill</span>
+              </button>
+            )}
+          </motion.div>
+        )}
+      </section>
 
       <BillModal
         isOpen={isBillModalOpen}
@@ -582,11 +918,7 @@ const BillPage = () => {
         isOpen={isPaymentModalOpen}
         bill={selectedBill}
         wallets={wallets}
-        onClose={() => {
-          if (isPaying) return;
-          setIsPaymentModalOpen(false);
-          setSelectedBill(null);
-        }}
+        onClose={closePaymentModal}
         onSubmit={handlePaymentSubmit}
         isSubmitting={isPaying}
       />
@@ -595,55 +927,77 @@ const BillPage = () => {
         isOpen={Boolean(archivingBill)}
         bill={archivingBill}
         onClose={() => {
-          if (!isArchiving) setArchivingBill(null);
+          if (!isArchiving) {
+            setArchivingBill(null);
+          }
         }}
         onConfirm={handleArchiveBill}
         isArchiving={isArchiving}
       />
 
-      {historyBill && (
-        <div
-          className="bill-history-modal-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closePaymentHistory();
-            }
-          }}
-        >
-          <motion.section
-            className="bill-history-modal"
-            initial={{ opacity: 0, y: 12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="bill-history-modal-title"
+      <AnimatePresence>
+        {historyBill && (
+          <motion.div
+            className="bill-history-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                closePaymentHistory();
+              }
+            }}
           >
-            <div className="bill-history-modal-header">
-              <div>
-                <span>PAYMENT RECORDS</span>
-                <h2 id="bill-history-modal-title">
-                  {historyBill.title}
-                </h2>
+            <motion.section
+              ref={historyModalRef}
+              className="bill-history-modal"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bill-history-modal-title"
+              tabIndex={-1}
+            >
+              <div className="bill-history-modal-header">
+                <div className="bill-history-modal-heading">
+                  <span className="bill-history-modal-eyebrow">
+                    PAYMENT RECORDS
+                  </span>
+
+                  <h2 id="bill-history-modal-title">
+                    {historyBill.title || "Payment history"}
+                  </h2>
+
+                  <p>Review previously recorded payments.</p>
+                </div>
+
+                <button
+                  ref={historyCloseButtonRef}
+                  type="button"
+                  className="bill-history-modal-close"
+                  onClick={closePaymentHistory}
+                  aria-label="Close payment history"
+                >
+                  ×
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={closePaymentHistory}
-                aria-label="Close payment history"
-              >
-                ×
-              </button>
-            </div>
-
-            <BillPaymentHistory
-              payments={payments}
-              isLoading={isHistoryLoading}
-              error={historyError}
-              onRetry={handleRetryHistory}
-            />
-          </motion.section>
-        </div>
-      )}
+              <div className="bill-history-modal-body">
+                <BillPaymentHistory
+                  payments={payments}
+                  isLoading={isHistoryLoading}
+                  error={historyError}
+                  onRetry={handleRetryHistory}
+                  pagination={historyPagination}
+                  onPageChange={handleHistoryPageChange}
+                />
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.main>
   );
 };
