@@ -1,4 +1,4 @@
-
+import "./BillPaymentModal.css";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -24,15 +24,21 @@ const getRemainingAmount = (bill) => {
   if (!bill) return "";
 
   if (bill.remainingAmount != null) {
-    return Number(bill.remainingAmount).toFixed(2);
+    const remaining = Number(bill.remainingAmount);
+
+    return Number.isFinite(remaining)
+      ? Math.max(remaining, 0).toFixed(2)
+      : "0.00";
   }
 
   const paidAmount = Number(
     bill.paidAmount ?? bill.totalPaid ?? 0
   );
 
+  const amount = Number(bill.amount || 0);
+
   const remaining = Math.max(
-    Number(bill.amount || 0) - paidAmount,
+    amount - (Number.isFinite(paidAmount) ? paidAmount : 0),
     0
   );
 
@@ -73,36 +79,96 @@ const BillPaymentModal = ({
 
   const [formError, setFormError] = useState("");
 
+  const modalRef = useRef(null);
+  const amountInputRef = useRef(null);
   const idempotencyKeyRef = useRef(null);
   const submittingRef = useRef(false);
+  const previousActiveElementRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement;
 
     setFormData(getInitialForm(bill));
     setFormError("");
 
     idempotencyKeyRef.current = crypto.randomUUID();
     submittingRef.current = false;
-  }, [isOpen, bill?._id]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const focusTimer = requestAnimationFrame(() => {
+      amountInputRef.current?.focus();
+    });
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape" && !isSubmitting) {
-        onClose?.();
+      if (event.key === "Escape") {
+        if (!isSubmitting) {
+          onClose?.();
+        }
+
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const modal = modalRef.current;
+
+      if (!modal) return;
+
+      const focusableElements = modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+
+      const focusableElementsArray = Array.from(
+        focusableElements
+      );
+
+      if (!focusableElementsArray.length) {
+        event.preventDefault();
+        modal.focus();
+        return;
+      }
+
+      const firstElement = focusableElementsArray[0];
+      const lastElement =
+        focusableElementsArray[
+        focusableElementsArray.length - 1
+        ];
+
+      if (
+        event.shiftKey &&
+        document.activeElement === firstElement
+      ) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === lastElement
+      ) {
+        event.preventDefault();
+        firstElement.focus();
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      cancelAnimationFrame(focusTimer);
+
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+
+      document.body.style.overflow = previousOverflow;
+
+      previousActiveElementRef.current?.focus?.();
     };
-  }, [isOpen, isSubmitting, onClose]);
+  }, [isOpen, bill?._id, isSubmitting, onClose]);
 
   const activeWallets = wallets.filter(
     (wallet) => wallet.status === "active"
@@ -117,6 +183,12 @@ const BillPaymentModal = ({
     }));
 
     setFormError("");
+  };
+
+  const handleClose = () => {
+    if (isSubmitting || submittingRef.current) return;
+
+    onClose?.();
   };
 
   const handleSubmit = async (event) => {
@@ -145,16 +217,23 @@ const BillPaymentModal = ({
       return;
     }
 
-    if (Number(amount) <= 0) {
+    const numericAmount = Number(amount);
+
+    if (
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0
+    ) {
       setFormError("Payment amount must be greater than zero.");
       return;
     }
 
-    const remainingAmount = Number(getRemainingAmount(bill));
+    const remainingAmount = Number(
+      getRemainingAmount(bill)
+    );
 
     if (
       Number.isFinite(remainingAmount) &&
-      Number(amount) > remainingAmount
+      numericAmount > remainingAmount
     ) {
       setFormError(
         "Payment amount cannot exceed the remaining bill amount."
@@ -164,6 +243,13 @@ const BillPaymentModal = ({
 
     if (!formData.paidAt) {
       setFormError("Please select the payment date.");
+      return;
+    }
+
+    if (formData.paidAt > getLocalDate()) {
+      setFormError(
+        "Payment date cannot be in the future."
+      );
       return;
     }
 
@@ -222,15 +308,18 @@ const BillPaymentModal = ({
               event.target === event.currentTarget &&
               !isSubmitting
             ) {
-              onClose?.();
+              handleClose();
             }
           }}
         >
           <motion.section
+            ref={modalRef}
             className="bill-payment-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="bill-payment-title"
+            aria-describedby="bill-payment-description"
+            tabIndex={-1}
             initial={{ opacity: 0, y: 25, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -251,7 +340,7 @@ const BillPaymentModal = ({
                     Record payment
                   </h2>
 
-                  <p>
+                  <p id="bill-payment-description">
                     Record a payment for{" "}
                     {bill?.title || "this bill"}.
                   </p>
@@ -261,7 +350,7 @@ const BillPaymentModal = ({
               <button
                 type="button"
                 className="bill-modal-close"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={isSubmitting}
                 aria-label="Close payment form"
               >
@@ -276,7 +365,9 @@ const BillPaymentModal = ({
               <div className="bill-payment-summary">
                 <div>
                   <span>Total bill amount</span>
-                  <strong>{formatCurrency(bill?.amount)}</strong>
+                  <strong>
+                    {formatCurrency(bill?.amount)}
+                  </strong>
                 </div>
 
                 <div className="bill-payment-summary-icon">
@@ -294,6 +385,7 @@ const BillPaymentModal = ({
                     <IndianRupee size={17} />
 
                     <input
+                      ref={amountInputRef}
                       id="payment-amount"
                       name="amount"
                       type="number"
@@ -323,7 +415,9 @@ const BillPaymentModal = ({
                       onChange={handleChange}
                       required
                     >
-                      <option value="">Select wallet</option>
+                      <option value="">
+                        Select wallet
+                      </option>
 
                       {activeWallets.map((wallet) => (
                         <option
@@ -352,6 +446,7 @@ const BillPaymentModal = ({
                       id="payment-date"
                       name="paidAt"
                       type="date"
+                      max={getLocalDate()}
                       value={formData.paidAt}
                       onChange={handleChange}
                       required
@@ -390,8 +485,9 @@ const BillPaymentModal = ({
                 <CheckCircle2 size={16} />
 
                 <span>
-                  Partial payments are supported. The bill will be
-                  marked paid when the full amount is settled.
+                  Partial payments are supported. The bill will
+                  be marked paid when the full amount is
+                  settled.
                 </span>
               </div>
 
@@ -399,7 +495,7 @@ const BillPaymentModal = ({
                 <button
                   type="button"
                   className="bill-form-cancel"
-                  onClick={onClose}
+                  onClick={handleClose}
                   disabled={isSubmitting}
                 >
                   <X size={17} />

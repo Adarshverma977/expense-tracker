@@ -440,3 +440,74 @@ body.dark .bill-history-skeleton {
     transition: none;
   }
 }
+
+.bill-history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 1px solid var(--bill-border, rgba(128, 128, 128, 0.18));
+}
+
+.bill-history-pagination span {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--bill-text-secondary, #777);
+  text-align: center;
+}
+
+.bill-history-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  min-width: 90px;
+  padding: 0 14px;
+  border: 1px solid var(--bill-border, rgba(128, 128, 128, 0.2));
+  border-radius: 10px;
+  background: var(--bill-surface, transparent);
+  color: var(--bill-text, inherit);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.bill-history-pagination button:hover:not(:disabled) {
+  background: var(--bill-hover, rgba(128, 128, 128, 0.08));
+}
+
+.bill-history-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bill-history-pagination button:focus-visible {
+  outline: 2px solid var(--bill-focus, #6366f1);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .bill-history-pagination {
+    gap: 8px;
+  }
+
+  .bill-history-pagination button {
+    min-width: 76px;
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  .bill-history-pagination span {
+    font-size: 0.78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bill-history-pagination button {
+    transition: none;
+  }
+}

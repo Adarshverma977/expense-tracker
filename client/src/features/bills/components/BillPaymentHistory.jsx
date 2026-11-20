@@ -1,3 +1,4 @@
+
 import "./BillPaymentHistory.css";
 import { motion } from "framer-motion";
 import {
@@ -23,7 +24,7 @@ const parseMinorUnits = (value) => {
   if (!amount || amount.length > 100) return null;
 
   const match = amount.match(
-    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/
+    /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/,
   );
 
   if (!match) return null;
@@ -70,7 +71,7 @@ const formatCurrency = (value) => {
   const fraction = String(absoluteAmount % 100n).padStart(2, "0");
 
   const formattedWhole = INTEGER_CURRENCY_FORMATTER.format(
-    isNegative ? -whole : whole
+    isNegative ? -whole : whole,
   );
 
   return `${formattedWhole}.${fraction}`;
@@ -122,8 +123,16 @@ const BillPaymentHistory = ({
   isLoading = false,
   error = "",
   onRetry,
+  pagination = {},
+  onPageChange,
 }) => {
   const safePayments = Array.isArray(payments) ? payments : [];
+
+  const page = pagination.page ?? 1;
+  const total = pagination.total ?? 0;
+  const totalPages = pagination.totalPages ?? 0;
+  const hasPreviousPage = pagination.hasPreviousPage ?? page > 1;
+  const hasNextPage = pagination.hasNextPage ?? page < totalPages;
 
   const sortedPayments = [...safePayments].sort((a, b) => {
     const dateA = new Date(a?.paidAt || 0).getTime();
@@ -204,81 +213,107 @@ const BillPaymentHistory = ({
 
         <span
           className="bill-history-count"
-          aria-label={`${sortedPayments.length} payment records displayed`}
+          aria-label={`${total} payment records`}
         >
-          {sortedPayments.length}{" "}
-          {sortedPayments.length === 1
-            ? "payment"
-            : "payments"}
+          {total} {total === 1 ? "payment" : "payments"}
         </span>
       </div>
 
       {sortedPayments.length > 0 ? (
-        <div className="bill-history-list">
-          {sortedPayments.map((payment, index) => {
-            const status = getPaymentStatus(payment?.status);
-            const StatusIcon = status.Icon;
+        <>
+          <div className="bill-history-list">
+            {sortedPayments.map((payment, index) => {
+              const status = getPaymentStatus(payment?.status);
+              const StatusIcon = status.Icon;
 
-            const wallet =
-              payment?.wallet &&
-                typeof payment.wallet === "object"
-                ? payment.wallet
-                : null;
+              const wallet =
+                payment?.wallet &&
+                  typeof payment.wallet === "object"
+                  ? payment.wallet
+                  : null;
 
-            return (
-              <motion.article
-                key={payment?._id || `${payment?.paidAt}-${index}`}
-                className="bill-history-item"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.25,
-                  delay: Math.min(index * 0.04, 0.2),
-                }}
-              >
-                <div className="bill-history-item-icon">
-                  <Receipt size={19} />
-                </div>
+              return (
+                <motion.article
+                  key={payment?._id || `${payment?.paidAt}-${index}`}
+                  className="bill-history-item"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: Math.min(index * 0.04, 0.2),
+                  }}
+                >
+                  <div className="bill-history-item-icon">
+                    <Receipt size={19} />
+                  </div>
 
-                <div className="bill-history-item-content">
-                  <div className="bill-history-item-top">
-                    <div>
-                      <strong>
-                        {formatCurrency(payment?.amount)}
-                      </strong>
+                  <div className="bill-history-item-content">
+                    <div className="bill-history-item-top">
+                      <div>
+                        <strong>
+                          {formatCurrency(payment?.amount)}
+                        </strong>
 
-                      <span>
-                        <CalendarDays size={13} />
-                        {formatDate(payment?.paidAt)}
+                        <span>
+                          <CalendarDays size={13} />
+                          {formatDate(payment?.paidAt)}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`bill-history-status ${status.className}`}
+                        aria-label={`Payment status: ${status.label}`}
+                      >
+                        <StatusIcon size={13} />
+                        {status.label}
                       </span>
                     </div>
 
-                    <span
-                      className={`bill-history-status ${status.className}`}
-                      aria-label={`Payment status: ${status.label}`}
-                    >
-                      <StatusIcon size={13} />
-                      {status.label}
-                    </span>
-                  </div>
-
-                  <div className="bill-history-item-bottom">
-                    <span>
-                      <Wallet size={14} />
-                      {wallet?.name || "Wallet unavailable"}
-                    </span>
-
-                    {payment?.notes && (
-                      <span className="bill-history-notes">
-                        {payment.notes}
+                    <div className="bill-history-item-bottom">
+                      <span>
+                        <Wallet size={14} />
+                        {wallet?.name || "Wallet unavailable"}
                       </span>
-                    )}
+
+                      {payment?.notes && (
+                        <span className="bill-history-notes">
+                          {payment.notes}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.article>
-            );
-          })}
-        </div>
+                </motion.article>
+              );
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div
+              className="bill-history-pagination"
+              aria-label="Payment history pagination"
+            >
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page - 1)}
+                disabled={!hasPreviousPage || isLoading}
+              >
+                Previous
+              </button>
+
+              <span aria-live="polite">
+                Page {page} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page + 1)}
+                disabled={!hasNextPage || isLoading}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="bill-history-empty">
           <div className="bill-history-empty-icon">

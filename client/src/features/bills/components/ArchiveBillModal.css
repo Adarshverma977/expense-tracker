@@ -1,0 +1,269 @@
+
+.archive-bill-modal {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 32px;
+  overflow: hidden;
+}
+
+.archive-bill-modal .bill-confirm-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-color, #e5eae6);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary, #718078);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
+  background: var(--surface-hover, #f3f7f4);
+  color: var(--text-primary, #17211b);
+}
+
+.archive-bill-modal .bill-confirm-close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.archive-bill-modal .bill-confirm-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.archive-bill-modal .bill-modal-eyebrow {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--text-secondary, #718078);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.archive-bill-modal h2 {
+  margin: 0;
+  color: var(--text-primary, #17211b);
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+  line-height: 1.35;
+}
+
+.archive-bill-modal > p {
+  margin: 12px 0 0;
+  color: var(--text-secondary, #718078);
+  font-size: 14px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.archive-bill-modal > p strong {
+  color: var(--text-primary, #17211b);
+  font-weight: 650;
+}
+
+.archive-bill-modal .bill-confirm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 22px;
+  padding: 14px;
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.07);
+  color: #b45309;
+}
+
+.archive-bill-modal .bill-confirm-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.archive-bill-modal .bill-confirm-warning span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.archive-bill-modal .bill-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.archive-bill-modal .bill-form-cancel,
+.archive-bill-modal .bill-archive-confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 17px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.archive-bill-modal .bill-form-cancel {
+  border: 1px solid var(--border-color, #e5eae6);
+  background: var(--surface, #ffffff);
+  color: var(--text-primary, #17211b);
+}
+
+.archive-bill-modal .bill-form-cancel:hover:not(:disabled) {
+  background: var(--surface-hover, #f3f7f4);
+}
+
+.archive-bill-modal .bill-archive-confirm-button {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.archive-bill-modal .bill-archive-confirm-button:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.archive-bill-modal .bill-form-cancel:disabled,
+.archive-bill-modal .bill-archive-confirm-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.archive-bill-modal button:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, 0.4);
+  outline-offset: 3px;
+}
+
+.dark .archive-bill-modal,
+[data-theme="dark"] .archive-bill-modal,
+body.dark .archive-bill-modal {
+  --archive-modal-surface: var(--surface, #18221d);
+  --archive-modal-text: var(--text-primary, #f0f5f1);
+  --archive-modal-muted: var(--text-secondary, #a0aea5);
+  --archive-modal-border: var(--border-color, #2b3931);
+}
+
+.dark .archive-bill-modal .bill-confirm-close,
+[data-theme="dark"] .archive-bill-modal .bill-confirm-close,
+body.dark .archive-bill-modal .bill-confirm-close {
+  border-color: var(--border-color, #2b3931);
+  color: var(--text-secondary, #a0aea5);
+}
+
+.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled),
+[data-theme="dark"] .archive-bill-modal .bill-confirm-close:hover:not(:disabled),
+body.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
+  background: #25332b;
+  color: var(--text-primary, #f0f5f1);
+}
+
+.dark .archive-bill-modal h2,
+[data-theme="dark"] .archive-bill-modal h2,
+body.dark .archive-bill-modal h2 {
+  color: var(--text-primary, #f0f5f1);
+}
+
+.dark .archive-bill-modal > p strong,
+[data-theme="dark"] .archive-bill-modal > p strong,
+body.dark .archive-bill-modal > p strong {
+  color: var(--text-primary, #f0f5f1);
+}
+
+.dark .archive-bill-modal .bill-form-cancel,
+[data-theme="dark"] .archive-bill-modal .bill-form-cancel,
+body.dark .archive-bill-modal .bill-form-cancel {
+  border-color: var(--border-color, #2b3931);
+  background: var(--surface, #18221d);
+  color: var(--text-primary, #f0f5f1);
+}
+
+.dark .archive-bill-modal .bill-form-cancel:hover:not(:disabled),
+[data-theme="dark"] .archive-bill-modal .bill-form-cancel:hover:not(:disabled),
+body.dark .archive-bill-modal .bill-form-cancel:hover:not(:disabled) {
+  background: #25332b;
+}
+
+@media (max-width: 600px) {
+  .archive-bill-modal {
+    width: min(100%, 440px);
+    padding: 26px 22px;
+    border-radius: 20px;
+  }
+
+  .archive-bill-modal .bill-confirm-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    margin-bottom: 19px;
+  }
+
+  .archive-bill-modal h2 {
+    font-size: 22px;
+  }
+
+  .archive-bill-modal > p {
+    font-size: 13px;
+  }
+
+  .archive-bill-modal .bill-confirm-actions {
+    gap: 9px;
+  }
+
+  .archive-bill-modal .bill-form-cancel,
+  .archive-bill-modal .bill-archive-confirm-button {
+    min-height: 42px;
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .archive-bill-modal {
+    padding: 24px 18px;
+  }
+
+  .archive-bill-modal .bill-confirm-actions {
+    flex-direction: column-reverse;
+  }
+
+  .archive-bill-modal .bill-form-cancel,
+  .archive-bill-modal .bill-archive-confirm-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archive-bill-modal .bill-confirm-close,
+  .archive-bill-modal .bill-form-cancel,
+  .archive-bill-modal .bill-archive-confirm-button {
+    transition: none;
+  }
+}
