@@ -18,7 +18,12 @@
   color: var(--bill-card-text);
   transition:
     border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.bill-card * {
+  box-sizing: border-box;
 }
 
 .bill-card:hover {
@@ -27,10 +32,7 @@
     var(--bill-card-accent) 30%,
     var(--bill-card-border)
   );
-}
-
-.bill-card * {
-  box-sizing: border-box;
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.045);
 }
 
 .bill-card-header {
@@ -111,6 +113,7 @@
     background 0.2s ease,
     border-color 0.2s ease,
     transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bill-card-actions button:hover:not(:disabled) {
@@ -302,14 +305,21 @@
   cursor: pointer;
   transition:
     filter 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.bill-pay-button:hover {
+.bill-pay-button:hover:not(:disabled) {
   filter: brightness(0.95);
+  box-shadow: 0 4px 12px color-mix(
+    in srgb,
+    var(--bill-card-accent) 25%,
+    transparent
+  );
 }
 
-.bill-pay-button:active {
+.bill-pay-button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -338,6 +348,18 @@ body.dark .bill-card {
   --bill-card-border: var(--border-color, #2b3931);
   --bill-card-accent: var(--primary-color, #34d399);
   --bill-card-soft: #202d26;
+}
+
+.dark .bill-card,
+[data-theme="dark"] .bill-card,
+body.dark .bill-card {
+  box-shadow: none;
+}
+
+.dark .bill-card:hover,
+[data-theme="dark"] .bill-card:hover,
+body.dark .bill-card:hover {
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.16);
 }
 
 .dark .bill-status-paid,
@@ -380,6 +402,10 @@ body.dark .bill-status-upcoming {
   .bill-card {
     padding: 16px;
     border-radius: 17px;
+  }
+
+  .bill-card-header {
+    flex-wrap: wrap;
   }
 
   .bill-card-title-group {
@@ -433,10 +459,6 @@ body.dark .bill-status-upcoming {
     margin-top: 16px;
     padding-top: 13px;
   }
-
-  .bill-card-header {
-  flex-wrap: wrap;
-}
 
   .bill-card-footer {
     margin-top: 14px;

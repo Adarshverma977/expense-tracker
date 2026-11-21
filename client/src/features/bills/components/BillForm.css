@@ -1,3 +1,4 @@
+
 .bill-form {
   --bill-form-bg: var(--surface, #ffffff);
   --bill-form-border: var(--border-color, #e5e7eb);
@@ -11,6 +12,11 @@
   width: 100%;
   min-width: 0;
   color: var(--bill-form-text);
+}
+
+.bill-form,
+.bill-form * {
+  box-sizing: border-box;
 }
 
 .bill-form-grid {
@@ -178,11 +184,17 @@
   transition:
     border-color 0.2s ease,
     background 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bill-reminder-option:hover {
   border-color: var(--bill-form-accent);
+}
+
+.bill-reminder-option:active {
+  transform: scale(0.98);
 }
 
 .bill-reminder-option:has(input:checked) {
@@ -226,6 +238,11 @@
   line-height: 1.5;
 }
 
+.bill-form-error > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .bill-form-actions {
   display: flex;
   align-items: center;
@@ -255,7 +272,9 @@
     color 0.2s ease,
     border-color 0.2s ease,
     box-shadow 0.2s ease,
-    opacity 0.2s ease;
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bill-form-cancel {
@@ -281,6 +300,11 @@
     var(--bill-form-accent) 25%,
     transparent
   );
+}
+
+.bill-form-cancel:active:not(:disabled),
+.bill-form-submit:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .bill-form-cancel:focus-visible,

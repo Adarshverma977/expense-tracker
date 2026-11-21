@@ -1,3 +1,4 @@
+
 .bill-filters {
   --bill-filter-bg: var(--surface, #ffffff);
   --bill-filter-border: var(--border-color, #e5e7eb);
@@ -14,6 +15,10 @@
   border-radius: 18px;
   background: var(--bill-filter-bg);
   color: var(--bill-filter-text);
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .bill-filter-heading {
@@ -35,6 +40,7 @@
 
 .bill-filter-title > svg {
   color: var(--bill-filter-muted);
+  flex-shrink: 0;
 }
 
 .bill-filter-count {
@@ -66,12 +72,17 @@
   cursor: pointer;
   transition:
     background 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .bill-reset-button:hover:not(:disabled) {
   background: var(--bill-filter-accent-soft);
   color: var(--bill-filter-accent);
+}
+
+.bill-reset-button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .bill-reset-button:focus-visible {
@@ -102,6 +113,7 @@
   color: var(--bill-filter-text);
   font-family: inherit;
   font-size: 13px;
+  box-sizing: border-box;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -139,6 +151,7 @@
   border-radius: 10px;
   background: var(--bill-filter-input-bg);
   color: var(--bill-filter-muted);
+  box-sizing: border-box;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -195,12 +208,17 @@
   cursor: pointer;
   transition:
     background 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
-.bill-search-clear:hover {
+.bill-search-clear:hover:not(:disabled) {
   background: var(--bill-filter-accent-soft);
   color: var(--bill-filter-accent);
+}
+
+.bill-search-clear:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .bill-search-clear:focus-visible {
@@ -218,6 +236,7 @@
   border: 1px solid var(--bill-filter-border);
   border-radius: 10px;
   background: var(--bill-filter-input-bg);
+  box-sizing: border-box;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
