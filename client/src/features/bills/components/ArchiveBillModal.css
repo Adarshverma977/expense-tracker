@@ -1,9 +1,16 @@
 
 .archive-bill-modal {
+  --archive-modal-surface: var(--surface, #ffffff);
+  --archive-modal-text: var(--text-primary, #17211b);
+  --archive-modal-muted: var(--text-secondary, #718078);
+  --archive-modal-border: var(--border, #e5eae6);
+  --archive-modal-hover: var(--surface-hover, #f3f7f4);
+
   position: relative;
   width: min(100%, 440px);
   padding: 32px;
   overflow: hidden;
+  color: var(--archive-modal-text);
 }
 
 .archive-bill-modal .bill-confirm-close {
@@ -16,10 +23,10 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid var(--border-color, #e5eae6);
+  border: 1px solid var(--archive-modal-border);
   border-radius: 11px;
-  background: transparent;
-  color: var(--text-secondary, #718078);
+  background: var(--archive-modal-surface);
+  color: var(--archive-modal-muted);
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -28,8 +35,8 @@
 }
 
 .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
-  background: var(--surface-hover, #f3f7f4);
-  color: var(--text-primary, #17211b);
+  background: var(--archive-modal-hover);
+  color: var(--archive-modal-text);
 }
 
 .archive-bill-modal .bill-confirm-close:disabled {
@@ -52,7 +59,7 @@
 .archive-bill-modal .bill-modal-eyebrow {
   display: block;
   margin-bottom: 9px;
-  color: var(--text-secondary, #718078);
+  color: var(--archive-modal-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -60,7 +67,7 @@
 
 .archive-bill-modal h2 {
   margin: 0;
-  color: var(--text-primary, #17211b);
+  color: var(--archive-modal-text);
   font-size: 24px;
   font-weight: 750;
   letter-spacing: -0.7px;
@@ -69,14 +76,14 @@
 
 .archive-bill-modal > p {
   margin: 12px 0 0;
-  color: var(--text-secondary, #718078);
+  color: var(--archive-modal-muted);
   font-size: 14px;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
 
 .archive-bill-modal > p strong {
-  color: var(--text-primary, #17211b);
+  color: var(--archive-modal-text);
   font-weight: 650;
 }
 
@@ -85,7 +92,7 @@
   align-items: flex-start;
   gap: 11px;
   margin-top: 22px;
-  padding: 14px;
+  padding: 15px;
   border: 1px solid rgba(245, 158, 11, 0.18);
   border-radius: 14px;
   background: rgba(245, 158, 11, 0.07);
@@ -101,6 +108,14 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.65;
+}
+
+.dark .archive-bill-modal .bill-confirm-warning,
+[data-theme="dark"] .archive-bill-modal .bill-confirm-warning,
+body.dark .archive-bill-modal .bill-confirm-warning {
+  border-color: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
 }
 
 .archive-bill-modal .bill-confirm-actions {
@@ -131,13 +146,13 @@
 }
 
 .archive-bill-modal .bill-form-cancel {
-  border: 1px solid var(--border-color, #e5eae6);
-  background: var(--surface, #ffffff);
-  color: var(--text-primary, #17211b);
+  border: 1px solid var(--archive-modal-border);
+  background: var(--archive-modal-surface);
+  color: var(--archive-modal-text);
 }
 
 .archive-bill-modal .bill-form-cancel:hover:not(:disabled) {
-  background: var(--surface-hover, #f3f7f4);
+  background: var(--archive-modal-hover);
 }
 
 .archive-bill-modal .bill-archive-confirm-button {
@@ -165,10 +180,11 @@
 .dark .archive-bill-modal,
 [data-theme="dark"] .archive-bill-modal,
 body.dark .archive-bill-modal {
-  --archive-modal-surface: var(--surface, #18221d);
-  --archive-modal-text: var(--text-primary, #f0f5f1);
-  --archive-modal-muted: var(--text-secondary, #a0aea5);
-  --archive-modal-border: var(--border-color, #2b3931);
+  --archive-modal-surface: #17231d;
+  --archive-modal-text: #e5eee8;
+  --archive-modal-muted: #9aada3;
+  --archive-modal-border: rgba(255, 255, 255, 0.07);
+  --archive-modal-hover: #22332a;
 }
 
 .dark .archive-bill-modal .bill-confirm-close,
@@ -183,32 +199,6 @@ body.dark .archive-bill-modal .bill-confirm-close {
 body.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
   background: #25332b;
   color: var(--text-primary, #f0f5f1);
-}
-
-.dark .archive-bill-modal h2,
-[data-theme="dark"] .archive-bill-modal h2,
-body.dark .archive-bill-modal h2 {
-  color: var(--text-primary, #f0f5f1);
-}
-
-.dark .archive-bill-modal > p strong,
-[data-theme="dark"] .archive-bill-modal > p strong,
-body.dark .archive-bill-modal > p strong {
-  color: var(--text-primary, #f0f5f1);
-}
-
-.dark .archive-bill-modal .bill-form-cancel,
-[data-theme="dark"] .archive-bill-modal .bill-form-cancel,
-body.dark .archive-bill-modal .bill-form-cancel {
-  border-color: var(--border-color, #2b3931);
-  background: var(--surface, #18221d);
-  color: var(--text-primary, #f0f5f1);
-}
-
-.dark .archive-bill-modal .bill-form-cancel:hover:not(:disabled),
-[data-theme="dark"] .archive-bill-modal .bill-form-cancel:hover:not(:disabled),
-body.dark .archive-bill-modal .bill-form-cancel:hover:not(:disabled) {
-  background: #25332b;
 }
 
 @media (max-width: 600px) {

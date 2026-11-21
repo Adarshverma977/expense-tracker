@@ -1,3 +1,4 @@
+
 .bill-payment-overlay {
   position: fixed;
   inset: 0;
@@ -6,26 +7,44 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(8, 12, 22, 0.58);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(8, 12, 22, 0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overscroll-behavior: contain;
 }
 
 .bill-payment-modal {
   position: relative;
   width: min(100%, 540px);
+  max-height: calc(100vh - 48px);
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
-  scrollbar-width: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
   border: 1px solid var(--color-border);
   border-radius: 24px;
   background: var(--color-surface);
   color: var(--color-text-primary);
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.35);
+  animation: bill-payment-modal-enter 0.24s ease-out;
 }
 
 .bill-payment-modal::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+}
+
+.bill-payment-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bill-payment-modal::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 20px;
+}
+
+.bill-payment-modal::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
 }
 
 .bill-payment-header {
@@ -62,15 +81,16 @@
 .bill-payment-heading h2 {
   margin: 5px 0 6px;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: -0.5px;
   color: var(--color-text-primary);
+  line-height: 1.35;
 }
 
 .bill-payment-heading p {
   margin: 0;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
 }
@@ -78,8 +98,9 @@
 .bill-modal-eyebrow {
   display: block;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 1.4px;
+  line-height: 1.4;
   color: var(--color-primary);
 }
 
@@ -94,13 +115,23 @@
   background: var(--color-surface-secondary);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .bill-modal-close:hover:not(:disabled) {
   border-color: var(--color-primary);
   background: var(--color-primary-light);
   color: var(--color-primary);
+  transform: rotate(90deg);
+}
+
+.bill-modal-close:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 3px;
 }
 
 .bill-modal-close:disabled {
@@ -120,7 +151,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 19px 20px;
+  padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: 18px;
   background: var(--color-surface-secondary);
@@ -130,6 +161,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .bill-payment-summary span {
@@ -139,10 +171,11 @@
 }
 
 .bill-payment-summary strong {
-  font-size: 24px;
+  font-size: 25px;
   font-weight: 750;
   letter-spacing: -0.6px;
   color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .bill-payment-summary-icon {
@@ -159,7 +192,7 @@
 .bill-payment-fields {
   display: flex;
   flex-direction: column;
-  gap: 19px;
+  gap: 20px;
 }
 
 .bill-form-field {
@@ -171,7 +204,7 @@
 
 .bill-form-field label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--color-text-primary);
 }
 
@@ -179,10 +212,10 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
-  padding: 0 14px;
+  min-height: 52px;
+  padding: 0 15px;
   border: 1px solid var(--color-border);
-  border-radius: 13px;
+  border-radius: 14px;
   background: var(--color-surface-secondary);
   color: var(--color-text-secondary);
   transition:
@@ -193,13 +226,12 @@
 
 .bill-input-with-icon > svg {
   flex-shrink: 0;
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .bill-input-with-icon:focus-within {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--color-primary) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .bill-input-with-icon input,
@@ -207,7 +239,7 @@
   flex: 1;
   width: 100%;
   min-width: 0;
-  min-height: 46px;
+  min-height: 50px;
   border: none;
   outline: none;
   background: transparent;
@@ -229,17 +261,23 @@
   color: var(--color-text-primary);
 }
 
-.bill-input-with-icon input[type="date"] {
+.bill-payment-modal input[type="date"] {
   color-scheme: light;
+}
+
+.dark .bill-payment-modal input[type="date"],
+[data-theme="dark"] .bill-payment-modal input[type="date"],
+body.dark .bill-payment-modal input[type="date"] {
+  color-scheme: dark;
 }
 
 .bill-payment-modal textarea {
   width: 100%;
-  min-height: 100px;
+  min-height: 115px;
   resize: vertical;
-  padding: 14px;
+  padding: 15px;
   border: 1px solid var(--color-border);
-  border-radius: 13px;
+  border-radius: 14px;
   background: var(--color-surface-secondary);
   color: var(--color-text-primary);
   font-family: inherit;
@@ -248,7 +286,8 @@
   outline: none;
   transition:
     border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .bill-payment-modal textarea::placeholder {
@@ -257,8 +296,7 @@
 
 .bill-payment-modal textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--color-primary) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .bill-notes-counter {
@@ -269,26 +307,21 @@
 
 .bill-form-error {
   padding: 13px 15px;
-  border: 1px solid
-    color-mix(in srgb, var(--color-danger) 25%, var(--color-border));
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, var(--color-border));
   border-radius: 13px;
-  background: color-mix(
-    in srgb,
-    var(--color-danger) 8%,
-    var(--color-surface)
-  );
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
   color: var(--color-danger);
   font-size: 13px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .bill-payment-info {
   display: flex;
   align-items: flex-start;
   gap: 11px;
-  padding: 14px 15px;
-  border: 1px solid
-    color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+  padding: 15px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
   border-radius: 14px;
   background: var(--color-primary-light);
   color: var(--color-text-secondary);
@@ -316,9 +349,9 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  min-height: 46px;
-  padding: 0 18px;
-  border-radius: 13px;
+  min-height: 48px;
+  padding: 0 19px;
+  border-radius: 14px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -328,7 +361,8 @@
     border-color 0.2s ease,
     color 0.2s ease,
     box-shadow 0.2s ease,
-    opacity 0.2s ease;
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .bill-form-cancel {
@@ -347,14 +381,13 @@
   border: 1px solid var(--color-primary);
   background: var(--color-primary);
   color: #fff;
-  box-shadow: 0 5px 14px
-    color-mix(in srgb, var(--color-primary) 22%, transparent);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
 .bill-form-submit:hover:not(:disabled) {
   filter: brightness(1.06);
-  box-shadow: 0 7px 20px
-    color-mix(in srgb, var(--color-primary) 30%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .bill-form-cancel:disabled,
@@ -362,19 +395,15 @@
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+  transform: none;
 }
 
 .bill-payment-wallet-warning {
   margin: 0;
-  padding: 13px 15px;
-  border: 1px solid
-    color-mix(in srgb, var(--color-warning) 25%, var(--color-border));
+  padding: 14px 15px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 25%, var(--color-border));
   border-radius: 13px;
-  background: color-mix(
-    in srgb,
-    var(--color-warning) 8%,
-    var(--color-surface)
-  );
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
   color: var(--color-text-secondary);
   font-size: 12px;
   line-height: 1.65;
@@ -384,18 +413,25 @@
 .bill-payment-modal input:focus-visible,
 .bill-payment-modal select:focus-visible,
 .bill-payment-modal textarea:focus-visible {
-  outline: 3px solid
-    color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   outline-offset: 3px;
 }
 
-.bill-payment-modal
-  .bill-input-with-icon
-  input:focus-visible,
-.bill-payment-modal
-  .bill-input-with-icon
-  select:focus-visible {
+.bill-payment-modal .bill-input-with-icon input:focus-visible,
+.bill-payment-modal .bill-input-with-icon select:focus-visible {
   outline: none;
+}
+
+@keyframes bill-payment-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (max-width: 600px) {
@@ -406,6 +442,7 @@
 
   .bill-payment-modal {
     width: 100%;
+    max-height: calc(100vh - 24px);
     max-height: calc(100dvh - 24px);
     border-radius: 22px;
   }
@@ -449,7 +486,7 @@
 
   .bill-form-cancel,
   .bill-form-submit {
-    min-height: 45px;
+    min-height: 46px;
     padding: 0 12px;
   }
 }
@@ -460,6 +497,7 @@
   }
 
   .bill-payment-modal {
+    max-height: calc(100vh - 16px);
     max-height: calc(100dvh - 16px);
     border-radius: 18px;
   }
@@ -495,10 +533,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bill-payment-modal,
   .bill-payment-modal *,
   .bill-payment-modal *::before,
   .bill-payment-modal *::after {
     transition: none !important;
     animation: none !important;
+  }
+
+  .bill-modal-close:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .bill-form-submit:hover:not(:disabled) {
+    transform: none;
   }
 }
