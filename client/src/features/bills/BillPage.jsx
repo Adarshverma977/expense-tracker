@@ -1,5 +1,7 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+
 import {
   Archive,
   Plus,
@@ -29,7 +31,9 @@ import BillCard from "./components/BillCard";
 import BillModal from "./components/BillModal";
 import BillPaymentModal from "./components/BillPaymentModal";
 import BillPaymentHistory from "./components/BillPaymentHistory";
-import ArchiveBillModal from "./components/ArchiveBillModal";
+
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import appToast from "../../components/ui/toast";
 
 import "./BillPage.css";
 
@@ -79,12 +83,12 @@ const BillPage = () => {
   const [editingBill, setEditingBill] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [archivingBill, setArchivingBill] = useState(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+
   const [selectedBill, setSelectedBill] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-
-  const [archivingBill, setArchivingBill] = useState(null);
-  const [isArchiving, setIsArchiving] = useState(false);
 
   const [historyBill, setHistoryBill] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -335,19 +339,39 @@ const BillPage = () => {
     }
   };
 
-  const handleArchiveBill = async () => {
-    if (!archivingBill || isArchiving) return;
+  const handleArchiveBill = (bill) => {
+    if (!bill?._id || isArchiving) return;
+
+    setArchivingBill(bill);
+  };
+
+  const closeArchiveModal = () => {
+    if (isArchiving) return;
+
+    setArchivingBill(null);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archivingBill?._id || isArchiving) return;
+
+    const billTitle = archivingBill.title || "Bill";
 
     try {
       setIsArchiving(true);
-      setError("");
 
       await archiveBill(archivingBill._id);
+
+      appToast.success(`${billTitle} archived successfully.`);
 
       setArchivingBill(null);
       setRefreshKey((current) => current + 1);
     } catch (err) {
-      setError(getErrorMessage(err, "Unable to archive bill."));
+      appToast.error(
+        getErrorMessage(
+          err,
+          "Unable to archive bill. Please try again.",
+        ),
+      );
     } finally {
       setIsArchiving(false);
     }
@@ -796,7 +820,7 @@ const BillPage = () => {
                   <BillCard
                     bill={bill}
                     onEdit={openEditModal}
-                    onArchive={setArchivingBill}
+                    onArchive={handleArchiveBill}
                     onPay={openPaymentModal}
                   />
 
@@ -923,16 +947,21 @@ const BillPage = () => {
         isSubmitting={isPaying}
       />
 
-      <ArchiveBillModal
+      <ConfirmDialog
         isOpen={Boolean(archivingBill)}
-        bill={archivingBill}
-        onClose={() => {
-          if (!isArchiving) {
-            setArchivingBill(null);
-          }
-        }}
-        onConfirm={handleArchiveBill}
-        isArchiving={isArchiving}
+        onClose={closeArchiveModal}
+        onConfirm={handleArchiveConfirm}
+        title="Archive this bill?"
+        description={
+          archivingBill
+            ? `"${archivingBill.title}" will be moved out of your active bills list. You can manage it from your archived bills.`
+            : "This bill will be moved out of your active bills list."
+        }
+        confirmText="Archive bill"
+        cancelText="Keep bill"
+        variant="warning"
+        icon="archive"
+        isLoading={isArchiving}
       />
 
       <AnimatePresence>

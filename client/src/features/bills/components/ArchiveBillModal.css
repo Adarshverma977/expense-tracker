@@ -3,14 +3,26 @@
   --archive-modal-surface: var(--surface, #ffffff);
   --archive-modal-text: var(--text-primary, #17211b);
   --archive-modal-muted: var(--text-secondary, #718078);
-  --archive-modal-border: var(--border, #e5eae6);
+  --archive-modal-border: var(--border-color, #e5eae6);
   --archive-modal-hover: var(--surface-hover, #f3f7f4);
 
   position: relative;
   width: min(100%, 440px);
-  padding: 32px;
+  max-width: 440px;
+  min-width: 0;
+  margin: auto;
+  padding: 30px;
   overflow: hidden;
+  border-radius: 24px;
   color: var(--archive-modal-text);
+  background: var(--archive-modal-surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
+}
+
+.archive-bill-modal *,
+.archive-bill-modal *::before,
+.archive-bill-modal *::after {
+  box-sizing: border-box;
 }
 
 .archive-bill-modal .bill-confirm-close {
@@ -25,18 +37,24 @@
   padding: 0;
   border: 1px solid var(--archive-modal-border);
   border-radius: 11px;
-  background: var(--archive-modal-surface);
+  background: transparent;
   color: var(--archive-modal-muted);
   cursor: pointer;
   transition:
     background 0.2s ease,
     color 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
   background: var(--archive-modal-hover);
+  border-color: var(--archive-modal-border);
   color: var(--archive-modal-text);
+}
+
+.archive-bill-modal .bill-confirm-close:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .archive-bill-modal .bill-confirm-close:disabled {
@@ -48,17 +66,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   margin-bottom: 22px;
   border-radius: 18px;
   background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
+  color: #f59e0b;
 }
 
 .archive-bill-modal .bill-modal-eyebrow {
   display: block;
-  margin-bottom: 9px;
+  margin-bottom: 10px;
   color: var(--archive-modal-muted);
   font-size: 11px;
   font-weight: 700;
@@ -78,13 +96,13 @@
   margin: 12px 0 0;
   color: var(--archive-modal-muted);
   font-size: 14px;
-  line-height: 1.75;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
 .archive-bill-modal > p strong {
   color: var(--archive-modal-text);
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .archive-bill-modal .bill-confirm-warning {
@@ -93,10 +111,10 @@
   gap: 11px;
   margin-top: 22px;
   padding: 15px;
-  border: 1px solid rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.2);
   border-radius: 14px;
-  background: rgba(245, 158, 11, 0.07);
-  color: #b45309;
+  background: rgba(245, 158, 11, 0.08);
+  color: #d97706;
 }
 
 .archive-bill-modal .bill-confirm-warning svg {
@@ -106,22 +124,15 @@
 
 .archive-bill-modal .bill-confirm-warning span {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.65;
-}
-
-.dark .archive-bill-modal .bill-confirm-warning,
-[data-theme="dark"] .archive-bill-modal .bill-confirm-warning,
-body.dark .archive-bill-modal .bill-confirm-warning {
-  border-color: rgba(245, 158, 11, 0.15);
-  background: rgba(245, 158, 11, 0.08);
-  color: #fbbf24;
 }
 
 .archive-bill-modal .bill-confirm-actions {
   display: flex;
+  align-items: stretch;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   margin-top: 26px;
 }
 
@@ -131,9 +142,11 @@ body.dark .archive-bill-modal .bill-confirm-warning {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-width: 0;
   min-height: 44px;
   padding: 11px 17px;
   border-radius: 12px;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 650;
   cursor: pointer;
@@ -142,17 +155,23 @@ body.dark .archive-bill-modal .bill-confirm-warning {
     border-color 0.2s ease,
     color 0.2s ease,
     transform 0.2s ease,
-    opacity 0.2s ease;
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .archive-bill-modal .bill-form-cancel {
   border: 1px solid var(--archive-modal-border);
-  background: var(--archive-modal-surface);
+  background: transparent;
   color: var(--archive-modal-text);
 }
 
 .archive-bill-modal .bill-form-cancel:hover:not(:disabled) {
   background: var(--archive-modal-hover);
+}
+
+.archive-bill-modal .bill-form-cancel:active:not(:disabled),
+.archive-bill-modal .bill-archive-confirm-button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .archive-bill-modal .bill-archive-confirm-button {
@@ -162,8 +181,9 @@ body.dark .archive-bill-modal .bill-confirm-warning {
 }
 
 .archive-bill-modal .bill-archive-confirm-button:hover:not(:disabled) {
-  background: #b91c1c;
   border-color: #b91c1c;
+  background: #b91c1c;
+  box-shadow: 0 5px 16px rgba(220, 38, 38, 0.2);
 }
 
 .archive-bill-modal .bill-form-cancel:disabled,
@@ -180,32 +200,34 @@ body.dark .archive-bill-modal .bill-confirm-warning {
 .dark .archive-bill-modal,
 [data-theme="dark"] .archive-bill-modal,
 body.dark .archive-bill-modal {
-  --archive-modal-surface: #17231d;
-  --archive-modal-text: #e5eee8;
-  --archive-modal-muted: #9aada3;
-  --archive-modal-border: rgba(255, 255, 255, 0.07);
-  --archive-modal-hover: #22332a;
+  --archive-modal-surface: var(--surface, #17231d);
+  --archive-modal-text: var(--text-primary, #e5eee8);
+  --archive-modal-muted: var(--text-secondary, #9aada3);
+  --archive-modal-border: var(--border-color, #2b3931);
+  --archive-modal-hover: var(--surface-hover, #22332a);
 }
 
-.dark .archive-bill-modal .bill-confirm-close,
-[data-theme="dark"] .archive-bill-modal .bill-confirm-close,
-body.dark .archive-bill-modal .bill-confirm-close {
-  border-color: var(--border-color, #2b3931);
-  color: var(--text-secondary, #a0aea5);
-}
-
-.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled),
-[data-theme="dark"] .archive-bill-modal .bill-confirm-close:hover:not(:disabled),
-body.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
-  background: #25332b;
-  color: var(--text-primary, #f0f5f1);
+.dark .archive-bill-modal .bill-confirm-warning,
+[data-theme="dark"] .archive-bill-modal .bill-confirm-warning,
+body.dark .archive-bill-modal .bill-confirm-warning {
+  border-color: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
 }
 
 @media (max-width: 600px) {
   .archive-bill-modal {
-    width: min(100%, 440px);
+    width: 100%;
+    max-width: 440px;
     padding: 26px 22px;
-    border-radius: 20px;
+    border-radius: 22px;
+  }
+
+  .archive-bill-modal .bill-confirm-close {
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
   }
 
   .archive-bill-modal .bill-confirm-icon {
@@ -221,15 +243,22 @@ body.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
 
   .archive-bill-modal > p {
     font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .archive-bill-modal .bill-confirm-warning {
+    margin-top: 20px;
+    padding: 13px;
   }
 
   .archive-bill-modal .bill-confirm-actions {
-    gap: 9px;
+    gap: 10px;
+    margin-top: 22px;
   }
 
   .archive-bill-modal .bill-form-cancel,
   .archive-bill-modal .bill-archive-confirm-button {
-    min-height: 42px;
+    min-height: 44px;
     padding: 10px 14px;
     font-size: 12px;
   }
@@ -238,10 +267,12 @@ body.dark .archive-bill-modal .bill-confirm-close:hover:not(:disabled) {
 @media (max-width: 380px) {
   .archive-bill-modal {
     padding: 24px 18px;
+    border-radius: 20px;
   }
 
   .archive-bill-modal .bill-confirm-actions {
     flex-direction: column-reverse;
+    gap: 10px;
   }
 
   .archive-bill-modal .bill-form-cancel,

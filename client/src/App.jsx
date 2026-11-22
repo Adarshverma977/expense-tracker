@@ -1,6 +1,8 @@
 
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import AppToast from "./components/ui/AppToast";
+
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 
@@ -23,62 +25,58 @@ import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 
 function App() {
   return (
-    <Routes>
-      {/* Public landing page */}
-      <Route path="/" element={<LandingPage />} />
+    <>
+      <AppToast />
 
-      {/* Authentication routes */}
-      <Route element={<PublicRoute />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route
-          path="/forgot-password"
-          element={<ForgotPasswordPage />}
-        />
-        <Route
-          path="/reset-password"
-          element={<ResetPasswordPage />}
-        />
-      </Route>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
 
-      {/* Protected application routes */}
-      <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-
+        <Route element={<PublicRoute />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route
-            path="/transactions"
-            element={<TransactionPage />}
+            path="/forgot-password"
+            element={<ForgotPasswordPage />}
           />
-
           <Route
-            path="/categories"
-            element={<CategoriesPage />}
-          />
-
-          <Route path="/budgets" element={<BudgetPage />} />
-
-          <Route
-            path="/recurring-transactions"
-            element={<RecurringTransactionsPage />}
-          />
-
-          <Route
-            path="/financial-goals"
-            element={<FinancialGoalsPage />}
-          />
-
-          {/* Bills & Payments */}
-          <Route
-            path="/bills"
-            element={<BillPage />}
+            path="/reset-password"
+            element={<ResetPasswordPage />}
           />
         </Route>
-      </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+
+            <Route
+              path="/transactions"
+              element={<TransactionPage />}
+            />
+
+            <Route
+              path="/categories"
+              element={<CategoriesPage />}
+            />
+
+            <Route path="/budgets" element={<BudgetPage />} />
+
+            <Route
+              path="/recurring-transactions"
+              element={<RecurringTransactionsPage />}
+            />
+
+            <Route
+              path="/financial-goals"
+              element={<FinancialGoalsPage />}
+            />
+
+            <Route path="/bills" element={<BillPage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 
