@@ -247,7 +247,7 @@ const BillForm = ({
       title,
       payee,
       description,
-      amount,
+      amount: amountString,
       category: formData.category,
       wallet: formData.wallet || null,
       frequency: formData.frequency,
