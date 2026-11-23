@@ -13,6 +13,7 @@ import LandingPage from "./features/landing/LandingPage";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionPage from "./features/transactions/TransactionPage";
 import CategoriesPage from "./features/categories/CategoriesPage";
+import WalletsPage from "./features/wallets/WalletsPage";
 import BudgetPage from "./features/budgets/BudgetPage";
 import RecurringTransactionsPage from "./features/recurringTransactions/RecurringTransactionsPage";
 import FinancialGoalsPage from "./features/financialGoals/FinancialGoalsPage";
@@ -59,6 +60,8 @@ function App() {
             />
 
             <Route path="/budgets" element={<BudgetPage />} />
+
+            <Route path="/wallets" element={<WalletsPage />} />
 
             <Route
               path="/recurring-transactions"

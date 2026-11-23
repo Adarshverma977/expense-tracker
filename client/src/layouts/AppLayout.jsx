@@ -46,6 +46,11 @@ const navigationItems = [
     icon: ReceiptText,
   },
   {
+    label: "Wallets",
+    path: "/wallets",
+    icon: Wallet,
+  },
+  {
     label: "Bills & Payments",
     path: "/bills",
     icon: CreditCard,
