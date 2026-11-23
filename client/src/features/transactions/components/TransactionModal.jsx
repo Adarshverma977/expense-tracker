@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
@@ -8,6 +7,7 @@ function TransactionModal({
   isOpen,
   transaction,
   categories = [],
+  wallets = [],
   onClose,
   onSubmit,
   isSubmitting = false,
@@ -73,10 +73,7 @@ function TransactionModal({
   }, [isOpen, isSubmitting, onClose]);
 
   const handleOverlayMouseDown = (event) => {
-    if (
-      event.target === event.currentTarget &&
-      !isSubmitting
-    ) {
+    if (event.target === event.currentTarget && !isSubmitting) {
       onClose?.();
     }
   };
@@ -141,6 +138,7 @@ function TransactionModal({
           <TransactionForm
             transaction={transaction}
             categories={categories}
+            wallets={wallets}
             onSubmit={onSubmit}
             onCancel={onClose}
             isSubmitting={isSubmitting}

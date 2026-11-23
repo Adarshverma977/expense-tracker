@@ -1,13 +1,13 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LoaderCircle } from "lucide-react";
 
-const createInitialForm = () => ({
+const createInitialForm = (defaultWallet = "") => ({
   title: "",
   amount: "",
   type: "expense",
   category: "",
+  wallet: defaultWallet,
   description: "",
   date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
@@ -42,14 +42,40 @@ const getCategoryId = (category) => {
   return category;
 };
 
-const getTransactionForm = (transaction) => {
-  if (!transaction) return createInitialForm();
+const getWalletId = (wallet) => {
+  if (!wallet) return "";
+
+  if (typeof wallet === "object") {
+    return wallet._id || wallet.id || "";
+  }
+
+  return wallet;
+};
+
+const getDefaultWallet = (wallets = []) => {
+  const defaultWallet = wallets.find(
+    (wallet) =>
+      wallet.isDefault ||
+      wallet.default ||
+      wallet.isPrimary
+  );
+
+  return getWalletId(defaultWallet) || (
+    wallets.length === 1 ? getWalletId(wallets[0]) : ""
+  );
+};
+
+const getTransactionForm = (transaction, wallets = []) => {
+  if (!transaction) {
+    return createInitialForm(getDefaultWallet(wallets));
+  }
 
   return {
     title: transaction.title || "",
     amount: String(transaction.amount ?? ""),
     type: transaction.type === "income" ? "income" : "expense",
     category: getCategoryId(transaction.category),
+    wallet: getWalletId(transaction.wallet) || getDefaultWallet(wallets),
     description: transaction.description || "",
     date: transaction.date
       ? toLocalDateTime(transaction.date)
@@ -61,16 +87,24 @@ const getTransactionForm = (transaction) => {
 function TransactionForm({
   transaction,
   categories = [],
+  wallets = [],
   onSubmit,
   onCancel,
   isSubmitting = false,
 }) {
-  const [form, setForm] = useState(() => getTransactionForm(transaction));
+  const [form, setForm] = useState(() =>
+    getTransactionForm(transaction, wallets)
+  );
   const [error, setError] = useState("");
 
   const safeCategories = useMemo(
     () => (Array.isArray(categories) ? categories.filter(Boolean) : []),
     [categories]
+  );
+
+  const safeWallets = useMemo(
+    () => (Array.isArray(wallets) ? wallets.filter(Boolean) : []),
+    [wallets]
   );
 
   const availableCategories = useMemo(
@@ -79,9 +113,9 @@ function TransactionForm({
   );
 
   useEffect(() => {
-    setForm(getTransactionForm(transaction));
+    setForm(getTransactionForm(transaction, safeWallets));
     setError("");
-  }, [transaction]);
+  }, [transaction, safeWallets]);
 
   useEffect(() => {
     if (!form.category) return;
@@ -94,6 +128,19 @@ function TransactionForm({
       setForm((current) => ({ ...current, category: "" }));
     }
   }, [availableCategories, form.category]);
+
+  useEffect(() => {
+    if (form.wallet) return;
+
+    const defaultWallet = getDefaultWallet(safeWallets);
+
+    if (defaultWallet) {
+      setForm((current) => ({
+        ...current,
+        wallet: defaultWallet,
+      }));
+    }
+  }, [form.wallet, safeWallets]);
 
   const updateField = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -137,10 +184,20 @@ function TransactionForm({
       return "Please select a category.";
     }
 
-    if (!availableCategories.some(
-      (category) => getCategoryId(category) === form.category
-    )) {
+    if (
+      !availableCategories.some(
+        (category) => getCategoryId(category) === form.category
+      )
+    ) {
       return "Please select a valid category.";
+    }
+
+    if (!form.wallet) {
+      return "Please select a wallet.";
+    }
+
+    if (!safeWallets.some((wallet) => getWalletId(wallet) === form.wallet)) {
+      return "Please select a valid wallet.";
     }
 
     if (!form.date || Number.isNaN(new Date(form.date).getTime())) {
@@ -186,6 +243,7 @@ function TransactionForm({
         amount: form.amount.trim(),
         type: form.type,
         category: form.category,
+        wallet: form.wallet,
         description: form.description.trim(),
         date: new Date(form.date).toISOString(),
         paymentMethod: form.paymentMethod,
@@ -242,10 +300,7 @@ function TransactionForm({
         </motion.button>
       </motion.div>
 
-      <motion.label
-        className="transaction-form-field"
-        variants={fieldVariants}
-      >
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Transaction title</span>
         <input
           type="text"
@@ -260,10 +315,7 @@ function TransactionForm({
         />
       </motion.label>
 
-      <motion.label
-        className="transaction-form-field"
-        variants={fieldVariants}
-      >
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Amount</span>
         <div className="transaction-amount-input">
           <span aria-hidden="true">₹</span>
@@ -282,10 +334,7 @@ function TransactionForm({
         </div>
       </motion.label>
 
-      <motion.div
-        className="transaction-form-row"
-        variants={fieldVariants}
-      >
+      <motion.div className="transaction-form-row" variants={fieldVariants}>
         <label className="transaction-form-field">
           <span>Category</span>
           <select
@@ -308,6 +357,7 @@ function TransactionForm({
               );
             })}
           </select>
+
           {availableCategories.length === 0 && (
             <small className="transaction-form-hint">
               No categories available for this transaction type.
@@ -334,10 +384,38 @@ function TransactionForm({
         </label>
       </motion.div>
 
-      <motion.label
-        className="transaction-form-field"
-        variants={fieldVariants}
-      >
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
+        <span>Wallet</span>
+        <select
+          name="wallet"
+          value={form.wallet}
+          onChange={(event) => updateField("wallet", event.target.value)}
+          disabled={isSubmitting || safeWallets.length === 0}
+          required
+        >
+          <option value="">Select wallet</option>
+
+          {safeWallets.map((wallet) => {
+            const walletId = getWalletId(wallet);
+
+            if (!walletId) return null;
+
+            return (
+              <option key={walletId} value={walletId}>
+                {wallet.name || wallet.walletName || "Unnamed wallet"}
+              </option>
+            );
+          })}
+        </select>
+
+        {safeWallets.length === 0 && (
+          <small className="transaction-form-hint">
+            No wallets available. Create a wallet before adding transactions.
+          </small>
+        )}
+      </motion.label>
+
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>Date</span>
         <input
           type="datetime-local"
@@ -349,10 +427,7 @@ function TransactionForm({
         />
       </motion.label>
 
-      <motion.label
-        className="transaction-form-field"
-        variants={fieldVariants}
-      >
+      <motion.label className="transaction-form-field" variants={fieldVariants}>
         <span>
           Description <small>Optional</small>
         </span>
@@ -362,9 +437,7 @@ function TransactionForm({
           maxLength={500}
           placeholder="Add a note about this transaction..."
           value={form.description}
-          onChange={(event) =>
-            updateField("description", event.target.value)
-          }
+          onChange={(event) => updateField("description", event.target.value)}
           disabled={isSubmitting}
         />
         <small className="transaction-form-character-count">
@@ -387,10 +460,7 @@ function TransactionForm({
         )}
       </AnimatePresence>
 
-      <motion.div
-        className="transaction-form-actions"
-        variants={fieldVariants}
-      >
+      <motion.div className="transaction-form-actions" variants={fieldVariants}>
         <motion.button
           type="button"
           className="transaction-secondary-button"
@@ -405,7 +475,11 @@ function TransactionForm({
         <motion.button
           type="submit"
           className="transaction-primary-button"
-          disabled={isSubmitting || availableCategories.length === 0}
+          disabled={
+            isSubmitting ||
+            availableCategories.length === 0 ||
+            safeWallets.length === 0
+          }
           whileHover={!isSubmitting ? { y: -2 } : undefined}
           whileTap={!isSubmitting ? { scale: 0.97 } : undefined}
         >

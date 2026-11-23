@@ -1268,3 +1268,171 @@
   color: var(--color-text-muted);
   font-size: 11px;
 }
+@media (max-width: 700px) {
+  .transaction-modal-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  .transaction-modal {
+    width: 100%;
+    max-width: 530px;
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+    padding: 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    border-radius: 20px;
+  }
+
+  .transaction-modal-header {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .transaction-modal-header > div {
+    min-width: 0;
+  }
+
+  .transaction-modal-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .transaction-modal-close {
+    width: 36px;
+    height: 36px;
+  }
+
+  .transaction-form {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .transaction-form-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .transaction-form-field input,
+  .transaction-form-field select,
+  .transaction-form-field textarea {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+
+  .transaction-form-row {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .transaction-form-actions {
+    flex-wrap: wrap;
+  }
+
+  .transaction-form-actions button {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .transaction-modal-overlay {
+    padding: 10px;
+  }
+
+  .transaction-modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 20px);
+    padding: 17px;
+    border-radius: 17px;
+  }
+
+  .transaction-modal-header {
+    gap: 8px;
+    margin-bottom: 17px;
+  }
+
+  .transaction-modal-eyebrow {
+    font-size: 0.58rem;
+    letter-spacing: 1px;
+  }
+
+  .transaction-modal-header h2 {
+    font-size: 1.12rem;
+  }
+
+  .transaction-modal-header p {
+    font-size: 0.75rem;
+  }
+
+  .transaction-modal-close {
+    flex-shrink: 0;
+  }
+
+  .transaction-form {
+    gap: 15px;
+  }
+
+  .transaction-form-row {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .transaction-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .transaction-form-actions button {
+    width: 100%;
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .transaction-modal {
+    padding: 14px;
+  }
+
+  .transaction-form-actions {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .transaction-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .transaction-modal {
+    position: relative;
+    width: 100%;
+    max-width: 530px;
+    max-height: calc(100dvh - 24px);
+    margin: 0;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+}

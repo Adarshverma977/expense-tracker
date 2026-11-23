@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft,
@@ -28,6 +27,8 @@ import {
   exportTransactions,
 } from "../../services/transactionService";
 import { getCategories } from "../../services/categoryService";
+import { getWallets } from "../../services/walletService";
+import appToast from "../../components/ui/toast";
 import "./TransactionPage.css";
 
 const PAGE_SIZE = 10;
@@ -212,9 +213,12 @@ const normalizePagination = (data, requestedPage) => {
 function TransactionPage() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [wallets, setWallets] = useState([]);
+
   const [pagination, setPagination] = useState(
     normalizePagination({}, 1)
   );
+
   const [filters, setFilters] = useState(createInitialFilters);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -227,7 +231,6 @@ function TransactionPage() {
   const [importResult, setImportResult] = useState(null);
   const [csvImportError, setCsvImportError] = useState("");
   const [pageError, setPageError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -251,6 +254,16 @@ function TransactionPage() {
 
     if (mountedRef.current) {
       setCategories(result.filter(Boolean));
+    }
+  }, []);
+
+  const fetchWallets = useCallback(async () => {
+    const response = await getWallets();
+
+    const result = extractArray(response, ["wallets"]);
+
+    if (mountedRef.current) {
+      setWallets(result.filter(Boolean));
     }
   }, []);
 
@@ -313,7 +326,7 @@ function TransactionPage() {
 
     fetchCategories().catch((error) => {
       if (mountedRef.current) {
-        setNotice(
+        appToast.error(
           getErrorMessage(
             error,
             "Unable to load categories. Please refresh the page."
@@ -322,10 +335,21 @@ function TransactionPage() {
       }
     });
 
+    fetchWallets().catch((error) => {
+      if (mountedRef.current) {
+        appToast.error(
+          getErrorMessage(
+            error,
+            "Unable to load wallets. Please refresh the page."
+          )
+        );
+      }
+    });
+
     return () => {
       mountedRef.current = false;
     };
-  }, [fetchCategories]);
+  }, [fetchCategories, fetchWallets]);
 
   useEffect(() => {
     fetchTransactions();
@@ -334,16 +358,6 @@ function TransactionPage() {
       requestIdRef.current += 1;
     };
   }, [fetchTransactions]);
-
-  useEffect(() => {
-    if (!notice) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setNotice("");
-    }, 3500);
-
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const visibleTransactions = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
@@ -429,10 +443,12 @@ function TransactionPage() {
           editingTransaction._id || editingTransaction.id,
           payload
         );
-        setNotice("Transaction updated successfully.");
+
+        appToast.success("Transaction updated successfully.");
       } else {
         await createTransaction(payload);
-        setNotice("Transaction added successfully.");
+
+        appToast.success("Transaction added successfully.");
       }
 
       setIsModalOpen(false);
@@ -471,7 +487,7 @@ function TransactionPage() {
       );
 
       setDeletingTransaction(null);
-      setNotice("Transaction deleted successfully.");
+      appToast.success("Transaction deleted successfully.");
 
       if (transactions.length === 1 && filters.page > 1) {
         setFilters((current) => ({
@@ -524,7 +540,7 @@ function TransactionPage() {
 
       setImportResult(response);
       setIsImportModalOpen(false);
-      setNotice("CSV import completed.");
+      appToast.success("CSV import completed.");
 
       await refreshAfterMutation();
     } catch (error) {
@@ -578,7 +594,7 @@ function TransactionPage() {
         window.URL.revokeObjectURL(downloadUrl);
       }, 1000);
 
-      setNotice("Transactions exported successfully.");
+      appToast.success("Transactions exported successfully.");
     } catch (error) {
       if (mountedRef.current) {
         setPageError(await getExportErrorMessage(error));
@@ -662,22 +678,6 @@ function TransactionPage() {
           </motion.button>
         </div>
       </motion.header>
-
-      <AnimatePresence mode="wait">
-        {notice && (
-          <motion.div
-            key={notice}
-            className="transaction-notice"
-            role="status"
-            variants={contentVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-          >
-            {notice}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <motion.section
         className="transactions-summary-grid"
@@ -795,7 +795,9 @@ function TransactionPage() {
                 className="transaction-secondary-button"
                 onClick={() => {
                   setPageError("");
+
                   fetchCategories().catch(() => { });
+                  fetchWallets().catch(() => { });
                   fetchTransactions();
                 }}
               >
@@ -867,9 +869,7 @@ function TransactionPage() {
                     whileHover={
                       page < totalPages ? { scale: 1.06 } : undefined
                     }
-                    whileTap={
-                      page < totalPages ? { scale: 0.94 } : undefined
-                    }
+                    whileTap={page < totalPages ? { scale: 0.94 } : undefined}
                   >
                     <ChevronRight size={18} />
                   </motion.button>
@@ -884,6 +884,7 @@ function TransactionPage() {
         isOpen={isModalOpen}
         transaction={editingTransaction}
         categories={categories}
+        wallets={wallets}
         onClose={closeModal}
         onSubmit={handleSaveTransaction}
         isSubmitting={isSubmitting}
