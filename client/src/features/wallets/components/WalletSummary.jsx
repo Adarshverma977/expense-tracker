@@ -1,32 +1,34 @@
 
 const formatCurrency = (amount = 0) => {
+  const numericAmount = Number(amount);
+
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(
+    Number.isFinite(numericAmount) ? numericAmount : 0
+  );
 };
 
 const WalletSummary = ({ summary }) => {
   const data = summary?.summary || summary || {};
 
-  const totalBalance =
-    data.totalBalance ?? data.balance ?? 0;
+  const totalAssets = Number(data.totalCashAndBank || 0);
+  const totalLiabilities = Number(data.totalCreditOutstanding || 0);
 
-  const totalWallets =
-    data.totalWallets ?? data.walletCount ?? 0;
+  const totalBalance = totalAssets - totalLiabilities;
 
-  const totalAssets =
-    data.totalAssets ?? data.assets ?? 0;
-
-  const totalLiabilities =
-    data.totalLiabilities ?? data.liabilities ?? 0;
+  const totalWallets = Number(
+    data.activeWallets ?? data.totalWallets ?? 0
+  );
 
   const summaryItems = [
     {
       title: "Total Balance",
       value: formatCurrency(totalBalance),
-      description: "Across all wallets",
+      description: "Net balance across active wallets",
       className: "total-balance",
     },
     {
@@ -38,13 +40,13 @@ const WalletSummary = ({ summary }) => {
     {
       title: "Total Assets",
       value: formatCurrency(totalAssets),
-      description: "Money available",
+      description: "Money available across accounts",
       className: "total-assets",
     },
     {
       title: "Total Liabilities",
       value: formatCurrency(totalLiabilities),
-      description: "Outstanding balances",
+      description: "Outstanding credit card balances",
       className: "total-liabilities",
     },
   ];

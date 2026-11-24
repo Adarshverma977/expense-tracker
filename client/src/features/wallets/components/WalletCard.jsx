@@ -3,29 +3,50 @@ import {
   Wallet,
   Landmark,
   CreditCard,
-  Smartphone,
-  MoreVertical,
+  PiggyBank,
   Pencil,
   Archive,
 } from "lucide-react";
 
-const walletIcons = {
-  cash: Wallet,
-  bank: Landmark,
-  card: CreditCard,
-  digital: Smartphone,
+const walletConfig = {
+  cash: {
+    label: "Cash",
+    icon: Wallet,
+  },
+  bank: {
+    label: "Bank Account",
+    icon: Landmark,
+  },
+  savings: {
+    label: "Savings Account",
+    icon: PiggyBank,
+  },
+  credit_card: {
+    label: "Credit Card",
+    icon: CreditCard,
+  },
 };
 
 const formatCurrency = (amount = 0) => {
+  const numericAmount = Number(amount);
+
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(
+    Number.isFinite(numericAmount) ? numericAmount : 0
+  );
 };
 
 const WalletCard = ({ wallet, onEdit, onArchive }) => {
-  const Icon = walletIcons[wallet.type] || Wallet;
+  const config = walletConfig[wallet.type] || {
+    label: "Wallet",
+    icon: Wallet,
+  };
+
+  const Icon = config.icon;
 
   const balance =
     wallet.balance ??
@@ -37,7 +58,7 @@ const WalletCard = ({ wallet, onEdit, onArchive }) => {
     <div className="wallet-card">
       <div className="wallet-card-top">
         <div className="wallet-card-icon">
-          <Icon size={22} />
+          <Icon size={22} strokeWidth={2} />
         </div>
 
         <div className="wallet-card-actions">
@@ -45,7 +66,8 @@ const WalletCard = ({ wallet, onEdit, onArchive }) => {
             type="button"
             className="wallet-card-action"
             onClick={() => onEdit(wallet)}
-            aria-label="Edit wallet"
+            aria-label={`Edit ${wallet.name}`}
+            title="Edit wallet"
           >
             <Pencil size={16} />
           </button>
@@ -54,7 +76,8 @@ const WalletCard = ({ wallet, onEdit, onArchive }) => {
             type="button"
             className="wallet-card-action"
             onClick={() => onArchive(wallet)}
-            aria-label="Archive wallet"
+            aria-label={`Archive ${wallet.name}`}
+            title="Archive wallet"
           >
             <Archive size={16} />
           </button>
@@ -63,16 +86,18 @@ const WalletCard = ({ wallet, onEdit, onArchive }) => {
 
       <div className="wallet-card-info">
         <span className="wallet-card-type">
-          {wallet.type || "Wallet"}
+          {config.label}
         </span>
 
         <h3 className="wallet-card-name">
           {wallet.name}
         </h3>
 
-        {wallet.description && (
+        {wallet.institution && (
           <p className="wallet-card-description">
-            {wallet.description}
+            {wallet.institution}
+            {wallet.lastFourDigits &&
+              ` •••• ${wallet.lastFourDigits}`}
           </p>
         )}
       </div>

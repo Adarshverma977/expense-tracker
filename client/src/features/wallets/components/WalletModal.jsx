@@ -10,7 +10,12 @@ const initialForm = {
   name: "",
   type: "cash",
   openingBalance: "",
-  description: "",
+  openingOutstanding: "",
+  creditLimit: "",
+  institution: "",
+  lastFourDigits: "",
+  icon: "",
+  color: "",
 };
 
 const WalletModal = ({
@@ -24,22 +29,24 @@ const WalletModal = ({
   const [loading, setLoading] = useState(false);
 
   const isEditing = Boolean(wallet);
+  const isCreditCard = form.type === "credit_card";
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (wallet) {
       setForm({
+        ...initialForm,
         name: wallet.name || "",
         type: wallet.type || "cash",
-        openingBalance:
-          wallet.openingBalance ??
-          wallet.balance ??
-          "",
-        description: wallet.description || "",
+        institution: wallet.institution || "",
+        lastFourDigits: wallet.lastFourDigits || "",
+        icon: wallet.icon || "",
+        color: wallet.color || "",
+        creditLimit: wallet.creditLimit?.toString() || "",
       });
     } else {
-      setForm(initialForm);
+      setForm({ ...initialForm });
     }
 
     setError("");
@@ -53,35 +60,143 @@ const WalletModal = ({
     setForm((prev) => ({
       ...prev,
       [name]: value,
+      ...(name === "type" && value === "credit_card"
+        ? { openingBalance: "" }
+        : {}),
+      ...(name === "type" && value !== "credit_card"
+        ? {
+          creditLimit: "",
+          openingOutstanding: "",
+        }
+        : {}),
     }));
+
+    setError("");
+  };
+
+  const isValidAmount = (value, allowZero = false) => {
+    if (value === "") return false;
+
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) {
+      return false;
+    }
+
+    const amount = Number(value);
+
+    return (
+      Number.isFinite(amount) &&
+      (allowZero ? amount >= 0 : amount > 0)
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!form.name.trim()) {
-      setError("Wallet name is required.");
+    const name = form.name.trim();
+
+    if (name.length < 2 || name.length > 60) {
+      setError("Wallet name must contain 2 to 60 characters.");
+      return;
+    }
+
+    if (form.institution.trim().length > 100) {
+      setError("Institution name cannot exceed 100 characters.");
       return;
     }
 
     if (
-      form.openingBalance !== "" &&
-      !Number.isFinite(Number(form.openingBalance))
+      form.lastFourDigits &&
+      !/^\d{4}$/.test(form.lastFourDigits)
     ) {
-      setError("Please enter a valid balance.");
+      setError("Enter exactly four digits for the card.");
+      return;
+    }
+
+    if (isCreditCard && !isValidAmount(form.creditLimit)) {
+      setError("Please enter a valid credit limit greater than zero.");
+      return;
+    }
+
+    if (
+      !isEditing &&
+      !isCreditCard &&
+      form.openingBalance !== "" &&
+      !isValidAmount(form.openingBalance, true)
+    ) {
+      setError("Enter a valid opening balance with up to 2 decimal places.");
+      return;
+    }
+
+    if (
+      !isEditing &&
+      isCreditCard &&
+      form.openingOutstanding !== "" &&
+      !isValidAmount(form.openingOutstanding, true)
+    ) {
+      setError("Enter a valid opening outstanding with up to 2 decimal places.");
       return;
     }
 
     const payload = {
-      name: form.name.trim(),
-      type: form.type,
-      description: form.description.trim(),
+      name,
+      ...(form.institution.trim() && {
+        institution: form.institution.trim(),
+      }),
+      ...(form.lastFourDigits && {
+        lastFourDigits: form.lastFourDigits,
+      }),
+      ...(form.icon.trim() && {
+        icon: form.icon.trim(),
+      }),
+      ...(form.color.trim() && {
+        color: form.color.trim(),
+      }),
     };
 
-    if (!isEditing) {
-      payload.openingBalance =
-        Number(form.openingBalance || 0);
+    if (isEditing) {
+      if (name === wallet.name) {
+        delete payload.name;
+      }
+
+      if (form.institution.trim() === (wallet.institution || "")) {
+        delete payload.institution;
+      }
+
+      if (form.lastFourDigits === (wallet.lastFourDigits || "")) {
+        delete payload.lastFourDigits;
+      }
+
+      if (form.icon.trim() === (wallet.icon || "")) {
+        delete payload.icon;
+      }
+
+      if (form.color.trim() === (wallet.color || "")) {
+        delete payload.color;
+      }
+
+      if (form.creditLimit !== (wallet.creditLimit?.toString() || "")) {
+        if (isCreditCard && isValidAmount(form.creditLimit)) {
+          payload.creditLimit = form.creditLimit;
+        }
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setError("Please make at least one change.");
+        return;
+      }
+    } else {
+      payload.type = form.type;
+
+      if (isCreditCard) {
+        payload.creditLimit = form.creditLimit;
+
+        if (form.openingOutstanding !== "") {
+          payload.openingOutstanding = form.openingOutstanding;
+        }
+      } else {
+        payload.openingBalance = form.openingBalance || "0";
+      }
     }
 
     try {
@@ -96,10 +211,18 @@ const WalletModal = ({
       await onSuccess();
       onClose();
     } catch (err) {
+      const validationErrors = err?.response?.data?.errors;
+
       setError(
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to save wallet."
+        Array.isArray(validationErrors)
+          ? validationErrors
+            .map((item) => item.message || item.path?.join("."))
+            .filter(Boolean)
+            .join(" ")
+          : err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "Failed to save wallet."
       );
     } finally {
       setLoading(false);
@@ -110,7 +233,7 @@ const WalletModal = ({
     <div
       className="wallet-modal-overlay"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && !loading) {
           onClose();
         }
       }}
@@ -118,10 +241,7 @@ const WalletModal = ({
       <div className="wallet-modal">
         <div className="wallet-modal-header">
           <div>
-            <h2>
-              {isEditing ? "Edit Wallet" : "Create Wallet"}
-            </h2>
-
+            <h2>{isEditing ? "Edit Wallet" : "Create Wallet"}</h2>
             <p>
               {isEditing
                 ? "Update your wallet details."
@@ -141,10 +261,7 @@ const WalletModal = ({
 
         <form onSubmit={handleSubmit}>
           <div className="wallet-form-group">
-            <label htmlFor="wallet-name">
-              Wallet Name
-            </label>
-
+            <label htmlFor="wallet-name">Wallet Name</label>
             <input
               id="wallet-name"
               type="text"
@@ -152,35 +269,76 @@ const WalletModal = ({
               placeholder="e.g. Personal Cash"
               value={form.name}
               onChange={handleChange}
-              maxLength={50}
+              maxLength={60}
               required
+              disabled={loading}
             />
-          </div>
-
-          <div className="wallet-form-group">
-            <label htmlFor="wallet-type">
-              Wallet Type
-            </label>
-
-            <select
-              id="wallet-type"
-              name="type"
-              value={form.type}
-              onChange={handleChange}
-            >
-              <option value="cash">Cash</option>
-              <option value="bank">Bank</option>
-              <option value="card">Card</option>
-              <option value="digital">Digital Wallet</option>
-            </select>
           </div>
 
           {!isEditing && (
             <div className="wallet-form-group">
+              <label htmlFor="wallet-type">Wallet Type</label>
+              <select
+                id="wallet-type"
+                name="type"
+                value={form.type}
+                onChange={handleChange}
+                disabled={loading}
+              >
+                <option value="cash">Cash</option>
+                <option value="bank">Bank Account</option>
+                <option value="savings">Savings Account</option>
+                <option value="credit_card">Credit Card</option>
+              </select>
+            </div>
+          )}
+
+          {form.type === "credit_card" && (
+            <>
+              <div className="wallet-form-group">
+                <label htmlFor="wallet-credit-limit">
+                  Credit Limit
+                </label>
+                <input
+                  id="wallet-credit-limit"
+                  type="number"
+                  name="creditLimit"
+                  placeholder="e.g. 50000"
+                  value={form.creditLimit}
+                  onChange={handleChange}
+                  min="0.01"
+                  step="0.01"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {!isEditing && (
+                <div className="wallet-form-group">
+                  <label htmlFor="wallet-opening-outstanding">
+                    Opening Outstanding
+                  </label>
+                  <input
+                    id="wallet-opening-outstanding"
+                    type="number"
+                    name="openingOutstanding"
+                    placeholder="0.00"
+                    value={form.openingOutstanding}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {form.type !== "credit_card" && !isEditing && (
+            <div className="wallet-form-group">
               <label htmlFor="wallet-opening-balance">
                 Opening Balance
               </label>
-
               <input
                 id="wallet-opening-balance"
                 type="number"
@@ -188,31 +346,47 @@ const WalletModal = ({
                 placeholder="0.00"
                 value={form.openingBalance}
                 onChange={handleChange}
+                min="0"
                 step="0.01"
+                disabled={loading}
               />
             </div>
           )}
 
           <div className="wallet-form-group">
-            <label htmlFor="wallet-description">
-              Description
+            <label htmlFor="wallet-institution">
+              Institution
               <span> (Optional)</span>
             </label>
-
-            <textarea
-              id="wallet-description"
-              name="description"
-              placeholder="Add some details about this wallet..."
-              value={form.description}
+            <input
+              id="wallet-institution"
+              type="text"
+              name="institution"
+              placeholder="e.g. HDFC Bank"
+              value={form.institution}
               onChange={handleChange}
-              rows={3}
-              maxLength={200}
+              maxLength={100}
+              disabled={loading}
             />
           </div>
 
-          {error && (
-            <div className="wallet-form-error">
-              {error}
+          {isCreditCard && (
+            <div className="wallet-form-group">
+              <label htmlFor="wallet-last-four">
+                Last Four Digits
+                <span> (Optional)</span>
+              </label>
+              <input
+                id="wallet-last-four"
+                type="text"
+                name="lastFourDigits"
+                placeholder="1234"
+                value={form.lastFourDigits}
+                onChange={handleChange}
+                maxLength={4}
+                inputMode="numeric"
+                disabled={loading}
+              />
             </div>
           )}
 
@@ -238,6 +412,12 @@ const WalletModal = ({
                   : "Create Wallet"}
             </button>
           </div>
+
+          {error && (
+            <div className="wallet-form-error" role="alert">
+              {error}
+            </div>
+          )}
         </form>
       </div>
     </div>
