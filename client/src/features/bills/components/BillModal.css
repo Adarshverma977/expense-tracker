@@ -21,14 +21,16 @@
 
 body.dark .bill-modal-overlay,
 .dark .bill-modal-overlay,
-[data-theme="dark"] .bill-modal-overlay {
-  --bill-modal-surface: #17231d;
-  --bill-modal-surface-secondary: #1d3027;
-  --bill-modal-border: rgba(255, 255, 255, 0.07);
-  --bill-modal-text: #e5eee8;
+[data-theme="dark"] .bill-modal-overlay,
+[data-mode="dark"] .bill-modal-overlay {
+  --bill-modal-surface: #111e16;
+  --bill-modal-surface-secondary: #17271f;
+  --bill-modal-border: rgba(110, 231, 183, 0.12);
+  --bill-modal-text: #e8f5ed;
   --bill-modal-muted: #9aada3;
-  --bill-modal-scrollbar: #475569;
-  --bill-modal-scrollbar-hover: #64748b;
+  --bill-modal-scrollbar: #365344;
+  --bill-modal-scrollbar-hover: #4b705c;
+  background: rgba(3, 15, 9, 0.76);
 }
 
 .bill-modal {

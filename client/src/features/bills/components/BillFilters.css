@@ -282,14 +282,15 @@
 
 .dark .bill-filters,
 [data-theme="dark"] .bill-filters,
+[data-mode="dark"] .bill-filters,
 body.dark .bill-filters {
-  --bill-filter-bg: var(--surface, #171b24);
-  --bill-filter-border: var(--border-color, #2b3240);
-  --bill-filter-text: var(--text-primary, #f3f4f6);
-  --bill-filter-muted: var(--text-secondary, #9ca3af);
-  --bill-filter-input-bg: var(--input-bg, #202633);
-  --bill-filter-accent: var(--primary-color, #34d399);
-  --bill-filter-accent-soft: rgba(52, 211, 153, 0.12);
+  --bill-filter-bg: #111e16;
+  --bill-filter-border: rgba(110, 231, 183, 0.12);
+  --bill-filter-text: #e8f5ed;
+  --bill-filter-muted: #9aada3;
+  --bill-filter-input-bg: #17271f;
+  --bill-filter-accent: #10b981;
+  --bill-filter-accent-soft: rgba(16, 185, 129, 0.14);
 }
 
 .dark .bill-filter-grid > select,
@@ -300,11 +301,23 @@ body.dark .bill-filters {
 [data-theme="dark"] .bill-filter-grid > input[type="date"],
 [data-theme="dark"] .bill-search-field,
 [data-theme="dark"] .bill-date-field,
+[data-mode="dark"] .bill-filter-grid > select,
+[data-mode="dark"] .bill-filter-grid > input[type="date"],
+[data-mode="dark"] .bill-search-field,
+[data-mode="dark"] .bill-date-field,
 body.dark .bill-filter-grid > select,
 body.dark .bill-filter-grid > input[type="date"],
 body.dark .bill-search-field,
 body.dark .bill-date-field {
   color-scheme: dark;
+}
+
+.dark .bill-filter-grid select option,
+[data-theme="dark"] .bill-filter-grid select option,
+[data-mode="dark"] .bill-filter-grid select option,
+body.dark .bill-filter-grid select option {
+  background: #17271f;
+  color: #e8f5ed;
 }
 
 @media (max-width: 1100px) {

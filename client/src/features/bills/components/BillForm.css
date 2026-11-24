@@ -321,15 +321,16 @@
 
 .dark .bill-form,
 [data-theme="dark"] .bill-form,
+[data-mode="dark"] .bill-form,
 body.dark .bill-form {
-  --bill-form-bg: var(--surface, #171b24);
-  --bill-form-border: var(--border-color, #2b3240);
-  --bill-form-text: var(--text-primary, #f3f4f6);
-  --bill-form-muted: var(--text-secondary, #9ca3af);
-  --bill-form-input-bg: var(--input-bg, #202633);
-  --bill-form-accent: var(--primary-color, #34d399);
-  --bill-form-accent-soft: rgba(52, 211, 153, 0.12);
-  --bill-form-danger: var(--danger-color, #f87171);
+  --bill-form-bg: #111e16;
+  --bill-form-border: rgba(110, 231, 183, 0.14);
+  --bill-form-text: #e8f5ed;
+  --bill-form-muted: #9aada3;
+  --bill-form-input-bg: #17271f;
+  --bill-form-accent: #10b981;
+  --bill-form-accent-soft: rgba(16, 185, 129, 0.14);
+  --bill-form-danger: #f87171;
 }
 
 .dark .bill-form-field > input,
@@ -342,11 +343,31 @@ body.dark .bill-form {
 [data-theme="dark"] .bill-form-field > textarea,
 [data-theme="dark"] .bill-input-with-icon,
 [data-theme="dark"] .bill-reminder-option,
+[data-mode="dark"] .bill-form-field > input,
+[data-mode="dark"] .bill-form-field > select,
+[data-mode="dark"] .bill-form-field > textarea,
+[data-mode="dark"] .bill-input-with-icon,
+[data-mode="dark"] .bill-reminder-option,
 body.dark .bill-form-field > input,
 body.dark .bill-form-field > select,
 body.dark .bill-form-field > textarea,
 body.dark .bill-input-with-icon,
 body.dark .bill-reminder-option {
+  color-scheme: dark;
+}
+
+.dark .bill-form-field > select option,
+[data-theme="dark"] .bill-form-field > select option,
+[data-mode="dark"] .bill-form-field > select option,
+body.dark .bill-form-field > select option {
+  background: #17271f;
+  color: #e8f5ed;
+}
+
+.dark .bill-input-with-icon input[type="date"],
+[data-theme="dark"] .bill-input-with-icon input[type="date"],
+[data-mode="dark"] .bill-input-with-icon input[type="date"],
+body.dark .bill-input-with-icon input[type="date"] {
   color-scheme: dark;
 }
 
