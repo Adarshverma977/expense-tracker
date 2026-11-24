@@ -883,3 +883,61 @@ body.dark .wallets-page {
     padding: 20px;
   }
 }
+
+.wallets-status-filter select {
+  min-width: 165px;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--wallet-border);
+  border-radius: 12px;
+  background: var(--wallet-surface);
+  color: var(--wallet-text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.wallets-status-filter select:focus {
+  border-color: var(--wallet-accent);
+}
+
+@media (max-width: 768px) {
+  .wallets-status-filter select {
+    width: 100%;
+  }
+}
+
+.wallet-card-archived {
+  opacity: 0.85;
+  border-style: dashed;
+}
+
+.wallet-card-archived:hover {
+  opacity: 1;
+}
+
+.wallet-card-restore {
+  color: var(--wallet-accent);
+  border-color: rgba(16, 185, 129, 0.35);
+  background: var(--wallet-accent-soft);
+}
+
+.wallet-card-restore:hover {
+  color: #ffffff;
+  background: #059669;
+  border-color: #059669;
+}
+
+.wallets-empty-icon {
+  width: 68px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  color: var(--wallet-accent);
+  background: var(--wallet-accent-soft);
+  border: 1px solid var(--wallet-border);
+  border-radius: 20px;
+}

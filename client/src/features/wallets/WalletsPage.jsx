@@ -1,9 +1,17 @@
+
 import "./WalletsPage.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, RefreshCw } from "lucide-react";
+import {
+  Plus,
+  Search,
+  RefreshCw,
+  ArchiveRestore,
+  Wallet,
+} from "lucide-react";
 import {
   getWallets,
   getWalletSummary,
+  restoreWallet,
 } from "../../services/walletService";
 import WalletSummary from "./components/WalletSummary";
 import WalletGrid from "./components/WalletGrid";
@@ -13,11 +21,14 @@ import ArchiveWalletModal from "./components/ArchiveWalletModal";
 const WalletsPage = () => {
   const [wallets, setWallets] = useState([]);
   const [summary, setSummary] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
 
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState(null);
@@ -36,7 +47,7 @@ const WalletsPage = () => {
       }
 
       const [walletResponse, summaryResponse] = await Promise.all([
-        getWallets(),
+        getWallets({ status: statusFilter }),
         getWalletSummary(),
       ]);
 
@@ -46,6 +57,7 @@ const WalletsPage = () => {
         [];
 
       const summaryData =
+        summaryResponse?.data?.summary ??
         summaryResponse?.data ??
         summaryResponse ??
         null;
@@ -62,7 +74,7 @@ const WalletsPage = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     fetchWalletData();
@@ -106,9 +118,39 @@ const WalletsPage = () => {
     setWalletToArchive(null);
   };
 
+  const handleRestoreWallet = async (wallet) => {
+    try {
+      setError("");
+
+      await restoreWallet(wallet._id);
+
+      await fetchWalletData(true);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to restore wallet."
+      );
+    }
+  };
+
   const handleSuccess = async () => {
     await fetchWalletData(true);
   };
+
+  const handleStatusChange = (value) => {
+    setStatusFilter(value);
+    setSearch("");
+    setFilter("all");
+  };
+
+  const sectionTitle = {
+    active: "Active Wallets",
+    archived: "Archived Wallets",
+    all: "All Wallets",
+  };
+
+  const isEmptyFilter = search.trim() !== "" || filter !== "all";
 
   return (
     <div className="wallets-page">
@@ -134,14 +176,16 @@ const WalletsPage = () => {
             <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
 
-          <button
-            type="button"
-            className="wallets-create-btn"
-            onClick={handleCreateWallet}
-          >
-            <Plus size={18} />
-            <span>Add Wallet</span>
-          </button>
+          {statusFilter !== "archived" && (
+            <button
+              type="button"
+              className="wallets-create-btn"
+              onClick={handleCreateWallet}
+            >
+              <Plus size={18} />
+              <span>Add Wallet</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -158,7 +202,10 @@ const WalletsPage = () => {
       )}
 
       {!loading && summary && (
-        <WalletSummary summary={summary} />
+        <WalletSummary
+          summary={summary}
+          statusFilter={statusFilter}
+        />
       )}
 
       <div className="wallets-toolbar">
@@ -177,19 +224,33 @@ const WalletsPage = () => {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter by wallet type"
           >
-            <option value="all">All Wallets</option>
+            <option value="all">All Types</option>
             <option value="cash">Cash</option>
             <option value="bank">Bank</option>
-            <option value="card">Card</option>
-            <option value="digital">Digital</option>
+            <option value="savings">Savings</option>
+            <option value="credit_card">Credit Card</option>
+          </select>
+        </div>
+
+        <div className="wallets-status-filter">
+          <select
+            value={statusFilter}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            aria-label="Filter wallets by status"
+          >
+            <option value="active">Active Wallets</option>
+            <option value="archived">Archived Wallets</option>
+            <option value="all">All Wallets</option>
           </select>
         </div>
       </div>
 
       <div className="wallets-section-heading">
         <div>
-          <h2>Your Wallets</h2>
+          <h2>{sectionTitle[statusFilter]}</h2>
+
           <span>
             {filteredWallets.length}{" "}
             {filteredWallets.length === 1 ? "wallet" : "wallets"}
@@ -207,23 +268,36 @@ const WalletsPage = () => {
           wallets={filteredWallets}
           onEdit={handleEditWallet}
           onArchive={handleArchiveWallet}
+          onRestore={handleRestoreWallet}
         />
       ) : (
         <div className="wallets-empty">
           <div className="wallets-empty-content">
+            <div className="wallets-empty-icon">
+              {statusFilter === "archived" ? (
+                <ArchiveRestore size={32} strokeWidth={1.8} />
+              ) : (
+                <Wallet size={32} strokeWidth={1.8} />
+              )}
+            </div>
+
             <h3>
-              {search || filter !== "all"
+              {isEmptyFilter
                 ? "No matching wallets"
-                : "No wallets yet"}
+                : statusFilter === "archived"
+                  ? "No archived wallets"
+                  : "No wallets yet"}
             </h3>
 
             <p>
-              {search || filter !== "all"
-                ? "Try changing your search or filter."
-                : "Create your first wallet to start tracking your money."}
+              {isEmptyFilter
+                ? "Try changing your search or wallet type filter."
+                : statusFilter === "archived"
+                  ? "Wallets you archive will appear here. You can restore them whenever you need."
+                  : "Create your first wallet to start tracking your money."}
             </p>
 
-            {!search && filter === "all" && (
+            {!isEmptyFilter && statusFilter === "active" && (
               <button
                 type="button"
                 className="wallets-create-btn"

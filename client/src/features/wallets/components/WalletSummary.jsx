@@ -1,10 +1,17 @@
 
-const formatCurrency = (amount = 0) => {
+const toMinorUnits = (amount = 0) => {
+  const numericAmount = Number(amount);
+  return Number.isFinite(numericAmount)
+    ? Math.round(numericAmount * 100)
+    : 0;
+};
+
+const formatCurrency = (amount = 0, currency = "INR") => {
   const numericAmount = Number(amount);
 
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "INR",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(
@@ -12,40 +19,66 @@ const formatCurrency = (amount = 0) => {
   );
 };
 
-const WalletSummary = ({ summary }) => {
+const WalletSummary = ({ summary, statusFilter = "active" }) => {
   const data = summary?.summary || summary || {};
 
-  const totalAssets = Number(data.totalCashAndBank || 0);
-  const totalLiabilities = Number(data.totalCreditOutstanding || 0);
+  const wallets = (data.wallets || []).filter((wallet) => {
+    return (
+      statusFilter === "all" ||
+      wallet.status === statusFilter
+    );
+  });
 
+  let totalAssetsMinor = 0;
+  let totalLiabilitiesMinor = 0;
+
+  wallets.forEach((wallet) => {
+    if (wallet.type === "credit_card") {
+      totalLiabilitiesMinor += toMinorUnits(
+        wallet.outstanding
+      );
+    } else {
+      totalAssetsMinor += toMinorUnits(wallet.balance);
+    }
+  });
+
+  const totalAssets = totalAssetsMinor / 100;
+  const totalLiabilities = totalLiabilitiesMinor / 100;
   const totalBalance = totalAssets - totalLiabilities;
 
-  const totalWallets = Number(
-    data.activeWallets ?? data.totalWallets ?? 0
-  );
+  const totalWallets = wallets.length;
+
+  const statusLabel =
+    statusFilter === "active"
+      ? "Active"
+      : statusFilter === "archived"
+        ? "Archived"
+        : "All";
+
+  const currency = data.currency || "INR";
 
   const summaryItems = [
     {
       title: "Total Balance",
-      value: formatCurrency(totalBalance),
-      description: "Net balance across active wallets",
+      value: formatCurrency(totalBalance, currency),
+      description: `Net balance across ${statusLabel.toLowerCase()} wallets`,
       className: "total-balance",
     },
     {
       title: "Total Wallets",
       value: totalWallets,
-      description: "Active accounts",
+      description: `${statusLabel} accounts`,
       className: "total-wallets",
     },
     {
       title: "Total Assets",
-      value: formatCurrency(totalAssets),
+      value: formatCurrency(totalAssets, currency),
       description: "Money available across accounts",
       className: "total-assets",
     },
     {
       title: "Total Liabilities",
-      value: formatCurrency(totalLiabilities),
+      value: formatCurrency(totalLiabilities, currency),
       description: "Outstanding credit card balances",
       className: "total-liabilities",
     },

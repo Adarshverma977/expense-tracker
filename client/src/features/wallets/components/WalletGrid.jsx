@@ -5,6 +5,7 @@ const WalletGrid = ({
   wallets,
   onEdit,
   onArchive,
+  onRestore,
 }) => {
   if (!wallets?.length) {
     return null;
@@ -18,6 +19,7 @@ const WalletGrid = ({
           wallet={wallet}
           onEdit={onEdit}
           onArchive={onArchive}
+          onRestore={onRestore}
         />
       ))}
     </div>

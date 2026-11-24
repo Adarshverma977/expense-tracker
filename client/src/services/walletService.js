@@ -29,3 +29,8 @@ export const archiveWallet = async (id) => {
   const response = await api.patch(`/wallets/${id}/archive`);
   return response.data;
 };
+
+export const restoreWallet = async (id) => {
+  const response = await api.patch(`/wallets/${id}/restore`);
+  return response.data;
+};
