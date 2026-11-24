@@ -329,6 +329,25 @@ const archiveWallet = async (userId, walletId) => {
   });
 };
 
+const restoreWallet = async (userId, walletId) => {
+  return runInTransaction(async (session) => {
+    const wallet = await getOwnedWallet(userId, walletId, session);
+
+    if (wallet.status === "active") {
+      throw new AppError("Wallet is already active.", 400);
+    }
+
+    wallet.status = "active";
+
+    await wallet.save({ session });
+
+    return {
+      message: "Wallet restored successfully.",
+      wallet: formatWallet(wallet),
+    };
+  });
+};
+
 const getWalletSummary = async (userId) => {
   const wallets = await Wallet.find({
     user: userId,
@@ -389,5 +408,6 @@ module.exports = {
   getWalletById,
   updateWallet,
   archiveWallet,
+  restoreWallet,
   getWalletSummary,
 };

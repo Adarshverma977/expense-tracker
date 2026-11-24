@@ -81,6 +81,18 @@ const archiveWallet = asyncHandler(async (req, res) => {
   });
 });
 
+const restoreWallet = asyncHandler(async (req, res) => {
+  const result = await walletService.restoreWallet(
+    req.user._id,
+    req.validatedParams.id,
+  );
+
+  res.status(200).json({
+    success: true,
+    ...result,
+  });
+});
+
 module.exports = {
   createWallet,
   getWallets,
@@ -88,4 +100,5 @@ module.exports = {
   getWalletById,
   updateWallet,
   archiveWallet,
+  restoreWallet,
 };

@@ -12,6 +12,7 @@ const {
   getWalletById,
   updateWallet,
   archiveWallet,
+  restoreWallet,
 } = require("../controllers/walletController");
 
 const {
@@ -34,5 +35,7 @@ router.get("/:id", validateRequest(walletIdSchema), getWalletById);
 router.patch("/:id", validateRequest(updateWalletSchema), updateWallet);
 
 router.patch("/:id/archive", validateRequest(walletIdSchema), archiveWallet);
+
+router.patch("/:id/restore", validateRequest(walletIdSchema), restoreWallet);
 
 module.exports = router;
