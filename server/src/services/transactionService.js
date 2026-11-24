@@ -216,10 +216,14 @@ const createTransaction = async (userId, transactionData) => {
       throw new AppError("Please select a wallet for this transaction.", 400);
     }
 
-    const [validatedCategory, wallet] = await Promise.all([
-      validateCategory(userId, category, type, session),
-      validateWallet(userId, walletId, session),
-    ]);
+    const validatedCategory = await validateCategory(
+      userId,
+      category,
+      type,
+      session,
+    );
+
+    const wallet = await validateWallet(userId, walletId, session);
 
     validateWalletTransactionType(wallet, type);
 
