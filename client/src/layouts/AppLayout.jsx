@@ -30,6 +30,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { useAuth } from "../features/auth/AuthContext";
 import { useTheme } from "../app/ThemeContext";
+import { getProfile } from "../features/profile/services/profileService";
 
 import ThemeToggle from "../components/common/ThemeToggle";
 import "./AppLayout.css";
@@ -75,6 +76,11 @@ const navigationItems = [
     path: "/financial-goals",
     icon: Target,
   },
+  {
+    label: "Settings",
+    path: "/settings",
+    icon: Settings,
+  },
 ];
 
 const pageVariants = {
@@ -92,9 +98,19 @@ const pageVariants = {
   },
 };
 
+const getResponseData = (response) => {
+  let data = response?.data ?? response;
+
+  if (data?.data) data = data.data;
+  if (data?.user) data = data.user;
+  if (data?.profile) data = data.profile;
+
+  return data;
+};
+
 const AppLayout = () => {
   const { user, logout } = useAuth();
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -110,13 +126,54 @@ const AppLayout = () => {
       location.pathname.startsWith(`${item.path}/`)
   );
 
-  const pageTitle = currentPage?.label || "Your finances";
+  const settingsPageTitles = {
+    "/settings/profile": "My Profile",
+    "/settings/preferences": "Preferences",
+    "/settings/security": "Security Settings",
+    "/settings/delete-account": "Delete Account",
+  };
+
+  const pageTitle =
+    settingsPageTitles[location.pathname] ||
+    currentPage?.label ||
+    "Your finances";
 
   const userName = user?.name || "My Account";
   const userEmail = user?.email || "Personal workspace";
 
   const userInitial =
     userName.trim().charAt(0).toUpperCase() || "U";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavedPreferences = async () => {
+      try {
+        const response = await getProfile();
+        const profile = getResponseData(response);
+
+        const savedTheme = profile?.preferences?.theme;
+
+        if (
+          isMounted &&
+          ["light", "dark", "system"].includes(savedTheme)
+        ) {
+          setTheme(savedTheme);
+        }
+      } catch (error) {
+        console.error(
+          "Unable to load saved preferences:",
+          error
+        );
+      }
+    };
+
+    loadSavedPreferences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setTheme]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -152,6 +209,11 @@ const AppLayout = () => {
     }
   };
 
+  const handleProfileNavigation = (path) => {
+    setProfileMenuOpen(false);
+    navigate(path);
+  };
+
   const renderNavigation = (className) => (
     <nav className={className} aria-label="Main navigation">
       {navigationItems.map((item) => {
@@ -161,7 +223,7 @@ const AppLayout = () => {
           <NavLink
             key={item.path}
             to={item.path}
-            end
+            end={item.path !== "/settings"}
             title={sidebarCollapsed ? item.label : undefined}
             className={({ isActive }) =>
               `sidebar-nav-item ${isActive ? "active" : ""}`
@@ -291,7 +353,9 @@ const AppLayout = () => {
               <PanelLeftClose size={18} />
             )}
 
-            {!sidebarCollapsed && <span>Collapse sidebar</span>}
+            {!sidebarCollapsed && (
+              <span>Collapse sidebar</span>
+            )}
           </button>
 
           {!sidebarCollapsed && (
@@ -392,7 +456,11 @@ const AppLayout = () => {
                       type="button"
                       className="profile-dropdown-item"
                       role="menuitem"
-                      onClick={() => setProfileMenuOpen(false)}
+                      onClick={() =>
+                        handleProfileNavigation(
+                          "/settings/profile"
+                        )
+                      }
                     >
                       <UserRound size={17} />
                       <span>My account</span>
@@ -402,7 +470,11 @@ const AppLayout = () => {
                       type="button"
                       className="profile-dropdown-item"
                       role="menuitem"
-                      onClick={() => setProfileMenuOpen(false)}
+                      onClick={() =>
+                        handleProfileNavigation(
+                          "/settings/preferences"
+                        )
+                      }
                     >
                       <Settings size={17} />
                       <span>Preferences</span>
@@ -419,7 +491,9 @@ const AppLayout = () => {
                     >
                       <LogOut size={17} />
                       <span>
-                        {loggingOut ? "Signing out..." : "Sign out"}
+                        {loggingOut
+                          ? "Signing out..."
+                          : "Sign out"}
                       </span>
                     </button>
                   </motion.div>

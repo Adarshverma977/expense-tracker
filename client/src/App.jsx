@@ -24,6 +24,13 @@ import RegisterPage from "./features/auth/RegisterPage";
 import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 
+import ProfileSettingsLayout from "./features/profile/pages/ProfileSettingsLayout";
+import ProfilePage from "./features/profile/pages/ProfilePage";
+import PreferencesPage from "./features/profile/pages/PreferencesPage";
+import SecurityPage from "./features/profile/pages/SecurityPage";
+import DeleteAccountPage from "./features/profile/pages/DeleteAccountPage";
+import VerifyEmailChangePage from "./features/profile/pages/VerifyEmailChangePage";
+
 function App() {
   return (
     <>
@@ -35,10 +42,12 @@ function App() {
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
           <Route
             path="/forgot-password"
             element={<ForgotPasswordPage />}
           />
+
           <Route
             path="/reset-password"
             element={<ResetPasswordPage />}
@@ -74,7 +83,39 @@ function App() {
             />
 
             <Route path="/bills" element={<BillPage />} />
+
+            <Route path="/settings" element={<ProfileSettingsLayout />}>
+              <Route
+                index
+                element={<Navigate to="profile" replace />}
+              />
+
+              <Route
+                path="profile"
+                element={<ProfilePage />}
+              />
+
+              <Route
+                path="preferences"
+                element={<PreferencesPage />}
+              />
+
+              <Route
+                path="security"
+                element={<SecurityPage />}
+              />
+
+              <Route
+                path="delete-account"
+                element={<DeleteAccountPage />}
+              />
+            </Route>
           </Route>
+
+          <Route
+            path="/verify-email-change"
+            element={<VerifyEmailChangePage />}
+          />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

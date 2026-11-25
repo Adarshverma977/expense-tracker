@@ -12,7 +12,7 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY = "expense-tracker-theme";
 
 const isValidTheme = (value) =>
-  value === "light" || value === "dark";
+  value === "light" || value === "dark" || value === "system";
 
 const getInitialTheme = () => {
   try {
@@ -24,11 +24,26 @@ const getInitialTheme = () => {
   }
 };
 
+const getSystemTheme = () => {
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  ) {
+    return "dark";
+  }
+
+  return "light";
+};
+
 export const ThemeProvider = ({ children }) => {
-  const [theme, setThemeState] = useState(getInitialTheme);
+  const [themePreference, setThemePreference] = useState(getInitialTheme);
+  const [systemTheme, setSystemTheme] = useState(getSystemTheme);
+
+  const theme =
+    themePreference === "system" ? systemTheme : themePreference;
 
   const setTheme = useCallback((nextTheme) => {
-    setThemeState((currentTheme) => {
+    setThemePreference((currentTheme) => {
       const resolvedTheme =
         typeof nextTheme === "function"
           ? nextTheme(currentTheme)
@@ -41,9 +56,12 @@ export const ThemeProvider = ({ children }) => {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((currentTheme) =>
-      currentTheme === "light" ? "dark" : "light"
-    );
+    setThemePreference((currentTheme) => {
+      const activeTheme =
+        currentTheme === "system" ? getSystemTheme() : currentTheme;
+
+      return activeTheme === "light" ? "dark" : "light";
+    });
   }, []);
 
   useEffect(() => {
@@ -51,16 +69,34 @@ export const ThemeProvider = ({ children }) => {
     document.documentElement.style.colorScheme = theme;
 
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.setItem(STORAGE_KEY, themePreference);
     } catch {
       return;
     }
-  }, [theme]);
+  }, [theme, themePreference]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    );
+
+    const handleSystemThemeChange = (event) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
+
+    setSystemTheme(mediaQuery.matches ? "dark" : "light");
+
+    mediaQuery.addEventListener("change", handleSystemThemeChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleSystemThemeChange);
+    };
+  }, []);
 
   useEffect(() => {
     const handleStorageChange = (event) => {
       if (event.key === STORAGE_KEY && isValidTheme(event.newValue)) {
-        setThemeState(event.newValue);
+        setThemePreference(event.newValue);
       }
     };
 
@@ -73,6 +109,7 @@ export const ThemeProvider = ({ children }) => {
 
   const value = {
     theme,
+    themePreference,
     setTheme,
     toggleTheme,
     isDark: theme === "dark",
