@@ -54,7 +54,7 @@ router.post(
   "/forgot-password",
   passwordResetLimiter,
   validateRequest(forgotPasswordSchema),
-  forgotPassword
+  forgotPassword,
 );
 
 // Reset Password
@@ -62,16 +62,11 @@ router.post(
   "/reset-password",
   passwordResetLimiter,
   validateRequest(resetPasswordSchema),
-  resetPassword
+  resetPassword,
 );
 
 // Login
-router.post(
-  "/login",
-  loginLimiter,
-  validateRequest(loginSchema),
-  login
-);
+router.post("/login", loginLimiter, validateRequest(loginSchema), login);
 
 // Logout
 router.post("/logout", logout);

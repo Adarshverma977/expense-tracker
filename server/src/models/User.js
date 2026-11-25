@@ -39,6 +39,32 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    avatar: {
+      type: String,
+      default: null,
+      maxlength: [2048, "Avatar URL cannot exceed 2048 characters"],
+    },
+
+    preferences: {
+      theme: {
+        type: String,
+        enum: ["light", "dark", "system"],
+        default: "system",
+      },
+
+      dateFormat: {
+        type: String,
+        enum: ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"],
+        default: "DD/MM/YYYY",
+      },
+
+      language: {
+        type: String,
+        enum: ["en", "hi"],
+        default: "en",
+      },
+    },
+
     emailVerified: {
       type: Boolean,
       default: false,
@@ -49,7 +75,45 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Password Reset
+    pendingEmail: {
+      type: String,
+      default: null,
+      lowercase: true,
+      trim: true,
+      maxlength: [254, "Email cannot exceed 254 characters"],
+      select: false,
+    },
+
+    emailChangeToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    emailChangeExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    accountStatus: {
+      type: String,
+      enum: ["active", "deletion_pending"],
+      default: "active",
+      required: true,
+    },
+
+    deletionRequestedAt: {
+      type: Date,
+      default: null,
+    },
+
+    schedulerWriteVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     passwordResetToken: {
       type: String,
       default: null,

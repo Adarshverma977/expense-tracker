@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 
+const User = require("../models/User");
 const RecurringTransaction = require("../models/RecurringTransaction");
 const RecurringTransactionExecution = require("../models/RecurringTransactionExecution");
 const Transaction = require("../models/Transaction");
@@ -48,6 +49,36 @@ const runInTransaction = async (callback) => {
   } finally {
     await session.endSession();
   }
+};
+
+const assertActiveUserAndFence = async (userId, session) => {
+  const user = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      accountStatus: "active",
+    },
+    {
+      $inc: {
+        schedulerWriteVersion: 1,
+      },
+    },
+    {
+      new: true,
+      session,
+    },
+  ).select("_id");
+
+  if (!user) {
+    const error = new Error(
+      "Recurring transaction cannot execute because the account is unavailable.",
+    );
+
+    error.code = "ACCOUNT_UNAVAILABLE";
+
+    throw error;
+  }
+
+  return user;
 };
 
 const claimDueSchedule = async () => {
@@ -283,6 +314,8 @@ const createLedgerForTransaction = async (
 
 const reconcileExistingTransaction = async (transaction, idempotencyKey) => {
   return runInTransaction(async (session) => {
+    await assertActiveUserAndFence(transaction.user, session);
+
     const currentTransaction = await Transaction.findOne({
       _id: transaction._id,
       recurrenceKey: idempotencyKey,
@@ -312,6 +345,8 @@ const createOrRecoverTransaction = async (
 ) => {
   try {
     return await runInTransaction(async (session) => {
+      await assertActiveUserAndFence(schedule.user, session);
+
       let transaction = await Transaction.findOne({
         recurrenceKey: idempotencyKey,
       }).session(session);
@@ -355,9 +390,7 @@ const createOrRecoverTransaction = async (
         true,
       );
 
-      transaction = createdTransaction;
-
-      return transaction;
+      return createdTransaction;
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -460,6 +493,47 @@ const pauseAfterMaxAttempts = async (schedule) => {
       },
     },
   );
+};
+
+const handleUnavailableAccount = async (schedule, execution, error) => {
+  if (execution) {
+    await RecurringTransactionExecution.findOneAndUpdate(
+      {
+        _id: execution._id,
+        status: "processing",
+        lockToken: execution.lockToken,
+      },
+      {
+        $set: {
+          status: "failed",
+          lastError: String(error.message).slice(0, 1000),
+          lockedUntil: null,
+          lockToken: null,
+        },
+      },
+    );
+  }
+
+  await RecurringTransaction.findOneAndUpdate(
+    {
+      _id: schedule._id,
+      status: "active",
+      lockToken: schedule.lockToken,
+    },
+    {
+      $set: {
+        status: "paused",
+        pausedAt: new Date(),
+        lockedUntil: null,
+        lockToken: null,
+      },
+    },
+  );
+
+  return {
+    success: false,
+    accountUnavailable: true,
+  };
 };
 
 const processClaimedSchedule = async (schedule) => {
@@ -637,6 +711,10 @@ const processClaimedSchedule = async (schedule) => {
       transactionId: transaction._id,
     };
   } catch (error) {
+    if (error.code === "ACCOUNT_UNAVAILABLE") {
+      return handleUnavailableAccount(schedule, execution, error);
+    }
+
     if (
       lockLost ||
       error.code === "SCHEDULE_LOCK_LOST" ||

@@ -262,6 +262,13 @@ const loginUser = async (credentials) => {
     throw new AppError("Invalid email or password", 401);
   }
 
+  if (user.accountStatus !== "active") {
+    throw new AppError(
+      "Your account is unavailable and cannot be accessed.",
+      403,
+    );
+  }
+
   const token = generateToken(user._id, user.tokenVersion ?? 0);
 
   const safeUser = {
@@ -291,9 +298,10 @@ const forgotPassword = async (email) => {
 
   const user = await User.findOne({
     email: normalizedEmail,
+    accountStatus: "active",
   });
 
-  // Do not reveal whether an account exists.
+  // Do not reveal whether an account exists or is deletion-pending.
   if (!user) {
     return genericResponse;
   }
@@ -348,11 +356,13 @@ const resetPassword = async ({ token, password }) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Atomically reset password and invalidate all existing sessions.
+  // Only active accounts can reset passwords.
+  // Existing sessions are invalidated after a successful reset.
   const user = await User.findOneAndUpdate(
     {
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: new Date() },
+      accountStatus: "active",
     },
     {
       $set: {

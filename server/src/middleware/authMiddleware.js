@@ -5,32 +5,56 @@ const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const env = require("../config/env");
 
-const protect = asyncHandler(async (req, res, next) => {
-  // Get token from HTTP-only cookie
+const getAuthenticatedUser = async (req) => {
   const token = req.cookies?.accessToken;
 
   if (!token) {
     throw new AppError("Authentication required. Please login.", 401);
   }
 
-  // Verify JWT
   const decoded = jwt.verify(token, env.JWT_SECRET, {
     algorithms: ["HS256"],
   });
 
-  // Find authenticated user
   const user = await User.findById(decoded.sub);
 
   if (!user) {
-    throw new AppError("User associated with this token no longer exists", 401);
+    throw new AppError(
+      "User associated with this token no longer exists.",
+      401,
+    );
   }
 
-  // Validate session version
+  return { user, decoded };
+};
+
+const protect = asyncHandler(async (req, res, next) => {
+  const { user, decoded } = await getAuthenticatedUser(req);
+
   if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
     throw new AppError("Your session has expired. Please log in again.", 401);
   }
 
-  // Attach user to request
+  if (user.accountStatus !== "active") {
+    throw new AppError("Your account is unavailable.", 403);
+  }
+
+  req.user = user;
+
+  next();
+});
+
+const protectAccountDeletion = asyncHandler(async (req, res, next) => {
+  const { user, decoded } = await getAuthenticatedUser(req);
+
+  if (user.accountStatus === "active") {
+    if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
+      throw new AppError("Your session has expired. Please log in again.", 401);
+    }
+  } else if (user.accountStatus !== "deletion_pending") {
+    throw new AppError("Account deletion is not available.", 403);
+  }
+
   req.user = user;
 
   next();
@@ -38,4 +62,5 @@ const protect = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   protect,
+  protectAccountDeletion,
 };
