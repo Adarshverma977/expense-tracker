@@ -1,3 +1,4 @@
+
 :root {
   color-scheme: light;
 
@@ -74,6 +75,26 @@
   --z-toast: 500;
 
   --content-max-width: 1600px;
+
+  --primary: var(--color-primary);
+  --primary-dark: var(--color-primary-dark);
+  --primary-light: var(--color-primary-light);
+  --primary-hover: var(--color-primary-hover);
+  --primary-soft: var(--color-primary-light);
+  --primary-border: rgba(20, 125, 90, 0.18);
+
+  --background: var(--color-background);
+  --surface: var(--color-surface);
+  --surface-secondary: var(--color-surface-secondary);
+  --surface-tertiary: var(--color-surface-tertiary);
+  --surface-hover: var(--color-surface-hover);
+
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
 }
 
 [data-theme="dark"] {
@@ -118,6 +139,26 @@
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.22);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.30);
   --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.38);
+
+  --primary: var(--color-primary);
+  --primary-dark: var(--color-primary-dark);
+  --primary-light: var(--color-primary-light);
+  --primary-hover: var(--color-primary-hover);
+  --primary-soft: var(--color-primary-light);
+  --primary-border: rgba(72, 201, 154, 0.2);
+
+  --background: var(--color-background);
+  --surface: var(--color-surface);
+  --surface-secondary: var(--color-surface-secondary);
+  --surface-tertiary: var(--color-surface-tertiary);
+  --surface-hover: var(--color-surface-hover);
+
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
 }
 
 *,

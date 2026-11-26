@@ -4,7 +4,7 @@
   max-width: 1000px;
   margin: 0 auto;
   padding: 32px;
-  color: var(--text-primary);
+  color: var(--text-primary, #17211d);
 }
 
 .delete-account-header {
@@ -12,38 +12,47 @@
 }
 
 .delete-account-eyebrow {
+  display: inline-block;
   color: #ef4444;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 750;
   letter-spacing: 1.5px;
+  text-transform: uppercase;
 }
 
 .delete-account-header h1 {
-  margin: 8px 0;
+  margin: 8px 0 7px;
+  color: var(--text-primary, #17211d);
   font-size: 30px;
   font-weight: 750;
+  letter-spacing: -0.8px;
+  line-height: 1.25;
 }
 
 .delete-account-header p {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .delete-account-card {
+  width: 100%;
   max-width: 760px;
   padding: 30px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.22);
   border-radius: 16px;
   background: var(--surface, #ffffff);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.035);
 }
 
 .delete-warning-icon {
   display: grid;
   width: 54px;
   height: 54px;
-  margin-bottom: 20px;
+  margin-bottom: 21px;
   place-items: center;
+  border: 1px solid rgba(239, 68, 68, 0.15);
   border-radius: 14px;
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
@@ -52,18 +61,22 @@
 .delete-warning-icon span {
   font-size: 28px;
   font-weight: 750;
+  line-height: 1;
 }
 
 .delete-warning-content h2 {
   margin: 0 0 9px;
+  color: var(--text-primary, #17211d);
   font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.4px;
 }
 
 .delete-warning-content p {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #64748b);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.8;
 }
 
 .delete-consequences {
@@ -75,8 +88,10 @@
 }
 
 .delete-consequences h3 {
-  margin: 0 0 16px;
-  font-size: 14px;
+  margin: 0 0 17px;
+  color: var(--text-primary, #17211d);
+  font-size: 13px;
+  font-weight: 750;
 }
 
 .delete-consequences ul {
@@ -84,10 +99,14 @@
   flex-direction: column;
   gap: 13px;
   margin: 0;
-  padding-left: 20px;
-  color: var(--text-secondary);
+  padding-left: 19px;
+  color: var(--text-secondary, #64748b);
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.7;
+}
+
+.delete-consequences li::marker {
+  color: #ef4444;
 }
 
 .delete-password-field {
@@ -97,74 +116,117 @@
 }
 
 .delete-password-field label {
-  font-size: 13px;
-  font-weight: 650;
+  color: var(--text-primary, #17211d);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .delete-password-field input {
   width: 100%;
-  min-height: 45px;
-  padding: 0 13px;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 9px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 10px;
   outline: none;
   background: var(--background, #f9fafb);
-  color: var(--text-primary);
-  font: inherit;
+  color: var(--text-primary, #17211d);
+  font-family: inherit;
   font-size: 13px;
+  font-weight: 500;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.delete-password-field input::placeholder {
+  color: var(--text-secondary, #64748b);
+  opacity: 0.75;
+}
+
+.delete-password-field input:hover:not(:disabled) {
+  border-color: rgba(239, 68, 68, 0.7);
 }
 
 .delete-password-field input:focus {
   border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.delete-password-field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .delete-confirmation {
   display: flex;
   align-items: flex-start;
   gap: 11px;
-  margin: 20px 0;
-  color: var(--text-secondary);
+  margin: 21px 0;
+  color: var(--text-secondary, #64748b);
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.7;
   cursor: pointer;
 }
 
 .delete-confirmation input {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin: 2px 0 0;
   accent-color: #ef4444;
   cursor: pointer;
 }
 
+.delete-confirmation input:focus-visible {
+  outline: 3px solid rgba(239, 68, 68, 0.2);
+  outline-offset: 2px;
+}
+
 .delete-account-alert {
   margin: 18px 0;
-  padding: 12px 14px;
-  border-radius: 9px;
-  background: #fee2e2;
+  padding: 13px 15px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
   color: #b91c1c;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .delete-account-button {
+  display: inline-flex;
   width: 100%;
   min-height: 47px;
+  align-items: center;
+  justify-content: center;
   padding: 0 20px;
-  border: none;
-  border-radius: 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
   background: #dc2626;
   color: #ffffff;
-  font: inherit;
+  font-family: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 750;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .delete-account-button:hover:not(:disabled) {
   background: #b91c1c;
+  box-shadow: 0 5px 14px rgba(220, 38, 38, 0.2);
+  transform: translateY(-1px);
+}
+
+.delete-account-button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .delete-account-button:disabled {
@@ -172,9 +234,18 @@
   opacity: 0.5;
 }
 
+.delete-account-button:focus-visible {
+  outline: 3px solid rgba(239, 68, 68, 0.25);
+  outline-offset: 3px;
+}
+
 @media (max-width: 650px) {
   .delete-account-page {
     padding: 20px 15px;
+  }
+
+  .delete-account-header {
+    margin-bottom: 22px;
   }
 
   .delete-account-header h1 {
@@ -183,9 +254,22 @@
 
   .delete-account-card {
     padding: 20px;
+    border-radius: 13px;
+  }
+
+  .delete-warning-content h2 {
+    font-size: 18px;
   }
 
   .delete-consequences {
+    margin: 22px 0;
     padding: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delete-password-field input,
+  .delete-account-button {
+    transition: none;
   }
 }
