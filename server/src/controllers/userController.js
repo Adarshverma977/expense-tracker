@@ -17,12 +17,6 @@ const { deleteUserAccount } = require("../services/accountDeletionService");
 
 const getProfile = async (req, res, next) => {
   try {
-    console.log("========== PROFILE DEBUG ==========");
-    console.log("Authenticated User ID:", req.user?._id);
-    console.log("Authenticated User Status:", req.user?.accountStatus);
-    console.log("Authenticated User Model:", req.user?.constructor?.modelName);
-    console.log("MongoDB Database:", req.user?.db?.name);
-
     const user = await getUserProfile(req.user._id);
 
     return res.status(200).json({
@@ -31,7 +25,6 @@ const getProfile = async (req, res, next) => {
       data: { user },
     });
   } catch (error) {
-    console.error("PROFILE ERROR:", error);
     next(error);
   }
 };
